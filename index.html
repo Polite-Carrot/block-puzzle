@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#79cbf2">
+<meta name="apple-mobile-web-app-title" content="Block Puzzle">
+<title>Block Puzzle</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ─────────────── home ─────────────── -->
+  <section id="screen-home" class="screen is-active">
+    <header class="masthead">
+      <div class="masthead__mark" aria-hidden="true">
+        <span style="--c:#f5423c"></span><span style="--c:#0ec3c6"></span><span style="--c:#9a53ef"></span>
+      </div>
+      <h1>Block&nbsp;Puzzle</h1>
+      <p class="masthead__tag">Drop every piece under the line. One hundred puzzles, one solution each.</p>
+    </header>
+
+    <div class="choices">
+      <button id="play" class="choice" type="button">
+        <span class="choice__jar" aria-hidden="true"><i id="home-fill"></i></span>
+        <span class="choice__body">
+          <span class="choice__name">Play</span>
+          <span class="choice__sub"><span id="home-progress">0 / 100</span> cleared</span>
+        </span>
+        <span class="choice__go" aria-hidden="true">›</span>
+      </button>
+    </div>
+
+    <p id="save-warning" class="save-warning" role="status" hidden></p>
+
+    <footer class="menu-foot">
+      <button id="how-to" class="btn btn--ghost">How to play</button>
+      <button id="settings" class="btn btn--ghost">Settings</button>
+      <button id="reset-progress" class="btn btn--ghost btn--quiet">Reset progress</button>
+    </footer>
+  </section>
+
+  <!-- ─────────────── levels ─────────────── -->
+  <section id="screen-levels" class="screen">
+    <header class="subhead">
+      <button id="levels-back" class="btn btn--ghost">&larr; Home</button>
+      <div class="subhead__title">
+        <h2>Puzzles</h2>
+        <span>One hundred, in order</span>
+      </div>
+      <span class="subhead__balance" aria-hidden="true"></span>
+    </header>
+    <ol id="level-grid" class="level-grid"></ol>
+  </section>
+
+  <!-- ─────────────── game ─────────────── -->
+  <section id="screen-game" class="screen">
+    <header class="topbar">
+      <button id="back" class="btn btn--ghost">&larr; Menu</button>
+      <div class="topbar__title">
+        <h2 id="level-name">&nbsp;</h2>
+        <span id="level-sub"></span>
+      </div>
+      <div class="topbar__stats">
+        <span class="stat"><b id="stat-placed">0</b><small>PLACED</small></span>
+        <span class="stat"><b id="stat-total">0</b><small>TOTAL</small></span>
+      </div>
+    </header>
+
+    <p id="brief" class="brief"></p>
+
+    <div class="board">
+      <div class="arena" id="arena"></div>
+    </div>
+
+    <div class="shelf-wrap">
+      <div id="queue" class="queue"></div>
+    </div>
+
+    <div class="toolbar">
+      <button id="undo" class="btn">Undo</button>
+      <button id="restart" class="btn">Restart</button>
+      <button id="game-settings" class="btn btn--icon" type="button" aria-label="Settings">⚙</button>
+    </div>
+
+    <p id="status" class="status" role="status" aria-live="polite">&nbsp;</p>
+  </section>
+
+  <!-- ─────────────── win ─────────────── -->
+  <div id="overlay" class="overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="win-title">
+      <h2 id="win-title">Cleared</h2>
+      <div class="stars" id="win-stars" aria-hidden="true"></div>
+      <p class="modal__line" id="win-line">Every piece under the line.</p>
+      <div class="modal__actions">
+        <button id="win-next" class="btn btn--primary">Next</button>
+        <button id="win-retry" class="btn">Try again</button>
+        <button id="win-menu" class="btn btn--ghost">Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────── fail ─────────────── -->
+  <div id="fail-overlay" class="overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="fail-title">
+      <h2 id="fail-title">Level failed</h2>
+      <p class="modal__line">A piece went above the line.</p>
+      <div class="modal__actions">
+        <button id="fail-retry" class="btn btn--primary">Retry</button>
+        <button id="fail-menu" class="btn btn--ghost">Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────── how to play ─────────────── -->
+  <div id="howto" class="overlay" hidden>
+    <div class="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="howto-title">
+      <h2 id="howto-title">How to play</h2>
+      <ol class="rules">
+        <li><b>The block falls on its own.</b> Every level has a queue of pieces; each falls from the top at a steady rate. Fit them all below the dashed line and the level is cleared — the arena is meant to end packed.</li>
+        <li><b>Swipe left or right</b> across the arena to shift the piece one column. On a keyboard, use the arrow keys.</li>
+        <li><b>Tap the arena</b> to rotate. On a keyboard, press space.</li>
+        <li><b>Swipe down</b> (or hold the down arrow) to speed the fall while you decide.</li>
+        <li><b>Undo</b> unlocks the last piece if you place it wrong. The brown ground at the bottom is the arena's landscape — each column has its own floor height, and pieces stack on top of it just as they do on each other.</li>
+      </ol>
+      <p class="modal__line">Stars are for a clean run. Finish without undoing for three; a few undos still earn two; finishing at all earns one.</p>
+      <div class="modal__actions"><button id="howto-close" class="btn btn--primary">Got it</button></div>
+    </div>
+  </div>
+
+  <!-- ─────────────── settings ─────────────── -->
+  <div id="settings-modal" class="overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <h2 id="settings-title">Settings</h2>
+      <div class="settings-list">
+        <div class="settings-row">
+          <span>Sound</span>
+          <button id="settings-sound" class="btn" type="button" aria-pressed="true">On</button>
+        </div>
+        <div class="settings-row">
+          <span>Colour Blind Assist</span>
+          <button id="settings-cb" class="btn" type="button" aria-pressed="false">Off</button>
+        </div>
+      </div>
+      <div class="modal__actions">
+        <button id="settings-close" class="btn btn--primary">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <canvas id="confetti" class="confetti" aria-hidden="true"></canvas>
+
+</div>
+
+<script src="js/store.js"></script>
+<script src="js/palette.js"></script>
+<script src="js/shapes.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/levels.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
