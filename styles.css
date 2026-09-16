@@ -42,6 +42,23 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+/* No zoom, no text selection anywhere by default — the game is a set of
+   controls, not a page. Inputs opt back in below. */
+html {
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+* {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+input, textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }
 
 body {
@@ -263,6 +280,59 @@ body.playing #screen-game.is-active > .board { flex: 1 1 0; min-height: 0; }
   transition: height .4s cubic-bezier(.2, .9, .3, 1.3);
 }
 
+/* A tiny calendar for the Daily Puzzle option, drawn the same weight as the
+   crate beside it. The big number is today's date; the pink strip is the
+   calendar's binder. */
+.choice__cal {
+  position: relative;
+  flex: 0 0 46px;
+  width: 46px;
+  height: 60px;
+  border: var(--stroke) solid var(--ink);
+  border-radius: 8px;
+  background: var(--paper);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.choice__cal-top {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 14px;
+  background: var(--accent);
+  border-bottom: 2px solid var(--ink);
+}
+.choice__cal b {
+  margin-top: 12px;
+  font-family: "Baloo 2", sans-serif;
+  font-weight: 800;
+  font-size: 22px;
+  color: var(--ink);
+  line-height: 1;
+}
+
+/* Three little jars at odd heights, standing in as blocks on a shelf — the
+   old shape of the Random Puzzle icon carried over from the colour-jars
+   project this game shares its bones with. */
+.choice__shelf {
+  flex: 0 0 46px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  width: 46px;
+  height: 60px;
+}
+.choice__shelf i {
+  width: 13px;
+  border: 2px solid var(--ink);
+  border-radius: 3px 3px 7px 7px;
+  background: linear-gradient(180deg, rgba(203, 233, 248, .8) 40%, var(--c) 40%);
+}
+.choice__shelf i:nth-child(1) { height: 36px; --c: #f5423c; }
+.choice__shelf i:nth-child(2) { height: 54px; --c: #0ec3c6; }
+.choice__shelf i:nth-child(3) { height: 44px; --c: #9a53ef; }
+
 .save-warning {
   text-align: center;
   color: var(--ink-soft);
@@ -300,7 +370,178 @@ body.playing #screen-game.is-active > .board { flex: 1 1 0; min-height: 0; }
 .subhead__title span { color: var(--ink-soft); font-size: 14px; font-weight: 700; }
 .subhead__balance { flex: 0 0 96px; }
 
+/* ───────── cards (daily / random) ───────── */
+
+.card {
+  background: var(--paper);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--radius);
+  padding: 22px;
+  box-shadow: 0 6px 0 var(--ink);
+}
+.card--single { width: 100%; max-width: 420px; margin: 0 auto; }
+.card__body { margin: 0 0 16px; color: var(--ink-soft); font-size: 15px; }
+.card__note { margin: 14px 0 0; color: var(--ink-soft); font-size: 14px; min-height: 1.2em; }
+
+/* Daily's big date at the top of its card, dressed like a diary page. */
+.daily__date {
+  text-align: center;
+  margin: 0 0 14px;
+  padding: 8px 0 14px;
+  border-bottom: 2px dashed var(--ink-faint);
+}
+.daily__day {
+  display: block;
+  font-family: "Baloo 2", sans-serif;
+  font-weight: 800;
+  font-size: 56px;
+  line-height: 1;
+  color: var(--ink);
+}
+.daily__month {
+  display: block;
+  margin-top: 4px;
+  font-size: 14px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* ───────── the difficulty slider ─────────
+   A slider is the one control here whose meaning is an ordering, and it
+   stays on one line at any width. */
+.setting { margin-bottom: 4px; }
+.setting__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.setting__label {
+  font-size: 13px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.setting__name {
+  font-family: "Baloo 2", sans-serif;
+  font-size: 20px;
+  color: var(--ink);
+}
+.setting__slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 26px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.setting__slider::-webkit-slider-runnable-track {
+  height: 10px;
+  border-radius: 999px;
+  border: var(--stroke) solid var(--ink);
+  background: var(--paper-warm);
+}
+.setting__slider::-moz-range-track {
+  height: 10px;
+  border-radius: 999px;
+  border: var(--stroke) solid var(--ink);
+  background: var(--paper-warm);
+}
+.setting__slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 26px;
+  height: 26px;
+  margin-top: -10px;
+  border-radius: 50%;
+  border: var(--stroke) solid var(--ink);
+  background: var(--gold);
+  box-shadow: 0 2px 0 var(--ink);
+  transition: transform .09s ease;
+}
+.setting__slider::-moz-range-thumb {
+  width: 26px;
+  height: 26px;
+  border: var(--stroke) solid var(--ink);
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 2px 0 var(--ink);
+}
+.setting__slider:active::-webkit-slider-thumb { transform: scale(1.08); }
+.setting__slider:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 999px;
+}
+.setting__ticks {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 4px;
+  margin-top: 2px;
+}
+.setting__ticks span {
+  font-size: 11px;
+  color: var(--ink-soft);
+  flex: 1;
+  text-align: center;
+}
+.setting__ticks span:first-child { text-align: left; }
+.setting__ticks span:last-child { text-align: right; }
+.setting__ticks span.is-on { color: var(--ink); font-weight: 700; }
+
+.difficulty__blurb {
+  margin: 12px 0 14px;
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 3em;
+}
+
+.seed {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+.seed input {
+  flex: 1;
+  min-width: 0;
+  background: #fff;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  padding: 8px 11px;
+}
+
 /* ───────── level grid ───────── */
+
+.level-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+  font-family: "Baloo 2", sans-serif;
+}
+.pager__label {
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+.btn--pager {
+  min-width: 52px;
+  padding: 6px 14px;
+  font-size: 18px;
+  font-weight: 800;
+}
 
 .level-grid {
   list-style: none;
@@ -400,10 +641,10 @@ body.playing #screen-game.is-active > .board { flex: 1 1 0; min-height: 0; }
 .board {
   display: flex;
   justify-content: center;
-  /* Anchor to the bottom — if the arena is ever taller than the board can
-     serve, the sky area (the piece's runway) clips at the top, but the pile
-     at the bottom stays visible where the player is trying to place it. */
-  align-items: flex-end;
+  /* Anchor to the top so the piece's runway is always in view — fitBoard
+     shrinks the cell size until the whole arena fits, so the pile at the
+     bottom never falls out of the frame either. */
+  align-items: flex-start;
   padding: 4px 0;
   overflow: hidden;
 }
@@ -416,18 +657,24 @@ body.playing #screen-game.is-active > .board { flex: 1 1 0; min-height: 0; }
   touch-action: none;
 }
 
-/* The frame is the clickable surface. It stacks the grid (bottom), the ghost
-   (middle) and the current piece (top). All three share a single cell-sized
-   coordinate system. */
+/* The frame is the clickable surface. All the painting — the sky-blue
+   playable interior and the ink outline — is done by the SVG child below;
+   the frame itself is transparent so the arena's actual shape is jagged,
+   not rectangular. */
 .arena__frame {
   position: relative;
-  border: var(--stroke) solid var(--ink);
-  border-radius: 18px;
-  background: var(--arena-sky);
-  overflow: hidden;
-  box-shadow: 0 6px 0 var(--ink);
+  overflow: visible;
   cursor: pointer;
   touch-action: none;
+  filter: drop-shadow(0 6px 0 var(--ink));
+}
+.arena__shape {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
 }
 
 .arena__grid {
@@ -474,16 +721,6 @@ body.playing #screen-game.is-active > .board { flex: 1 1 0; min-height: 0; }
   pointer-events: none;
 }
 body.cb-assist .cell__mark { display: block; opacity: .9; }
-
-/* Terrain is the arena's boundary — cells at the bottom of shorter columns
-   are filled the same colour as the frame's ink border, so visually the
-   inside of the arena is a jagged shape and there is nothing "sitting" on
-   the play area. Adjacent terrain cells blend into one solid mass. */
-.cell--ground {
-  background: var(--ink);
-  border-radius: 0;
-  box-shadow: none;
-}
 
 /* The ceiling line — an ink dash across the arena at the top of the play
    area. Drawn as a background image so it does not steal clicks. */
@@ -561,13 +798,12 @@ body.cb-assist .block__mark { display: block; opacity: .9; }
   display: flex;
   align-items: flex-end;
   justify-content: flex-start;
-  gap: 8px;
-  padding: 8px 12px 6px;
+  gap: 6px;
+  padding: 6px 10px 5px;
   border: var(--stroke) solid var(--ink);
-  border-radius: 14px;
-  background:
-    linear-gradient(180deg, var(--wood) 0 78%, var(--wood-edge) 78% 100%);
-  box-shadow: 0 4px 0 var(--wood-under);
+  border-radius: 12px;
+  background: var(--paper-warm);
+  box-shadow: 0 4px 0 var(--ink-faint);
   overflow-x: auto;
   overflow-y: hidden;
   max-width: 100%;
@@ -576,15 +812,16 @@ body.cb-assist .block__mark { display: block; opacity: .9; }
 .queue::-webkit-scrollbar { display: none; }
 
 .queue__slot {
-  --qcell: 18px;
+  --qcell: 14px;
+  --qslot: 4;                          /* every slot is 4 cells wide/tall */
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  min-width: 44px;
+  gap: 3px;
+  width: calc(var(--qslot) * var(--qcell) + 4px);
 }
-.queue__slot.is-now { --qcell: 22px; }
+.queue__slot.is-now { --qcell: 18px; }
 .queue__cue {
   font-family: "Baloo 2", sans-serif;
   font-weight: 800;
@@ -596,14 +833,21 @@ body.cb-assist .block__mark { display: block; opacity: .9; }
   padding: 1px 6px;
   border-radius: 6px;
 }
+/* Fixed 4×4 thumb per slot so the queue never changes height as pieces
+   with different shapes come and go. --ox and --oy shift the piece so it
+   sits centred horizontally and pinned to the bottom of the box. */
 .queue__thumb {
   position: relative;
   --cell: var(--qcell);
-  width: calc(var(--pw, 4) * var(--cell));
-  height: calc(var(--ph, 3) * var(--cell));
+  width: calc(var(--qslot) * var(--cell));
+  height: calc(var(--qslot) * var(--cell));
 }
-.queue .block { --cell: var(--qcell); box-shadow:
-  inset 0 -3px 0 var(--edge), inset 0 0 0 1px rgba(43, 33, 66, .38); }
+.queue .block {
+  --cell: var(--qcell);
+  box-shadow: inset 0 -3px 0 var(--edge), inset 0 0 0 1px rgba(43, 33, 66, .38);
+  left: calc((var(--c) + var(--ox, 0)) * var(--cell));
+  top:  calc((var(--r) + var(--oy, 0)) * var(--cell));
+}
 .queue .block__mark { display: none; }
 
 /* ───────── toolbar and status ───────── */
@@ -670,6 +914,96 @@ body.cb-assist .block__mark { display: block; opacity: .9; }
 @keyframes modalIn {
   from { opacity: 0; transform: translateY(20px) scale(.95); }
   to   { opacity: 1; transform: none; }
+}
+
+/* Result modal — larger title, a bouncy badge on top, and a shimmer strip
+   of colour tabs behind the badge on a win. Sits on top of the confetti,
+   which handles the celebration outside the modal. */
+.modal--result { text-align: center; padding-top: 44px; overflow: visible; }
+.result__flare {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  pointer-events: none;
+}
+.result__flare span {
+  width: 14px;
+  height: 22px;
+  border: 2px solid var(--ink);
+  border-radius: 3px 3px 7px 7px;
+  animation: flareBob 1.4s ease-in-out infinite;
+}
+.result__flare span:nth-child(1) { background: #f5423c; animation-delay: 0s; }
+.result__flare span:nth-child(2) { background: #0ec3c6; animation-delay: .1s; }
+.result__flare span:nth-child(3) { background: #9a53ef; animation-delay: .2s; }
+.result__flare span:nth-child(4) { background: #ffd028; animation-delay: .3s; }
+/* Fail flare — muted, tumbling flags to hint "so close, try again" rather
+   than punishing. Same silhouette, different palette + animation. */
+.result__flare--fail span { animation-name: flareTumble; }
+.result__flare--fail span:nth-child(1) { background: var(--accent); }
+.result__flare--fail span:nth-child(2) { background: #7f7160; }
+.result__flare--fail span:nth-child(3) { background: var(--accent); }
+.result__flare--fail span:nth-child(4) { background: #7f7160; }
+@keyframes flareBob {
+  0%, 100% { transform: translateY(0) rotate(-6deg); }
+  50%      { transform: translateY(-8px) rotate(6deg); }
+}
+@keyframes flareTumble {
+  0%, 100% { transform: translateY(0) rotate(-12deg); }
+  50%      { transform: translateY(4px) rotate(12deg); }
+}
+.result__badge {
+  width: 74px;
+  height: 74px;
+  margin: 0 auto 10px;
+  border-radius: 50%;
+  border: var(--stroke) solid var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Baloo 2", sans-serif;
+  font-weight: 800;
+  font-size: 44px;
+  color: #fff;
+  box-shadow: 0 4px 0 var(--ink);
+  animation: badgePop .55s cubic-bezier(.25,.9,.35,1.5) both;
+}
+.result__badge--win  { background: var(--grass); }
+.result__badge--fail { background: var(--accent); animation-name: badgeShake; }
+@keyframes badgePop {
+  0%   { transform: scale(0) rotate(-20deg); }
+  60%  { transform: scale(1.15) rotate(6deg); }
+  100% { transform: scale(1)    rotate(0); }
+}
+@keyframes badgeShake {
+  0%   { transform: scale(0) rotate(0); }
+  60%  { transform: scale(1.1); }
+  70%  { transform: scale(1) translateX(-6px); }
+  80%  { transform: scale(1) translateX(6px); }
+  90%  { transform: scale(1) translateX(-3px); }
+  100% { transform: scale(1) translateX(0); }
+}
+.result__title {
+  margin: 0 0 6px;
+  font-size: 34px;
+  letter-spacing: -.01em;
+  animation: titlePop .5s cubic-bezier(.2,.9,.3,1.4) both;
+  animation-delay: .12s;
+}
+.result__title--win  { color: var(--ink); text-shadow: 0 3px 0 rgba(53, 196, 107, .35); }
+.result__title--fail { color: var(--ink); text-shadow: 0 3px 0 rgba(255, 93, 143, .35); }
+@keyframes titlePop {
+  from { opacity: 0; transform: translateY(10px) scale(.9); }
+  to   { opacity: 1; transform: none; }
+}
+.modal--result .modal__line {
+  margin-top: 8px;
+  font-size: 16px;
+  color: var(--ink);
+  font-weight: 700;
 }
 
 .modal h2 {

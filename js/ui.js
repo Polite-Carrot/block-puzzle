@@ -19,10 +19,28 @@
     return n;
   }
 
+  function svg(tag, attrs, parent) {
+    var n = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    if (attrs) for (var k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(n);
+    return n;
+  }
+
   function ArenaView(mount) {
     this.mount = mount;
     mount.innerHTML = '';
     this.frame = el('div', 'arena__frame', mount);
+    /* The SVG that draws the arena's jagged sky-blue interior and its
+       ink border — the frame around it is otherwise transparent so the
+       shape underneath is genuinely non-rectangular. */
+    this.shape = svg('svg', { class: 'arena__shape', preserveAspectRatio: 'none' }, this.frame);
+    this.shapePoly = svg('polygon', {
+      fill: 'var(--arena-sky)',
+      stroke: 'var(--ink)',
+      'stroke-width': '3',
+      'stroke-linejoin': 'miter',
+      'vector-effect': 'non-scaling-stroke'
+    }, this.shape);
     this.ceiling = el('div', 'arena__ceiling', this.frame);
     this.grid = el('div', 'arena__grid', this.frame);
     this.ghost = el('div', 'arena__ghost', this.frame);
@@ -41,17 +59,43 @@
     var w = game.width * cellPx;
     var h = game.height * cellPx;
     var sky = game.sky * cellPx;
-    /* Frame is border-box with a 3px border, so add 6px for the inner
-       content area to exactly fit the grid. Otherwise the grid overflows
-       by the border amount and the last row is clipped. */
-    var borderChrome = 6;
-    this.frame.style.width = (w + borderChrome) + 'px';
-    this.frame.style.height = (h + sky + borderChrome) + 'px';
+    this.frame.style.width = w + 'px';
+    this.frame.style.height = (h + sky) + 'px';
     this.frame.style.setProperty('--cell', cellPx + 'px');
     this.frame.style.setProperty('--sky', sky + 'px');
     this.frame.style.setProperty('--w', game.width);
     this.frame.style.setProperty('--h', game.height);
     this.frame.style.setProperty('--rows', (game.sky + game.height));
+    this._reshape(game);
+  };
+
+  /* Build the polygon that outlines the arena's actual play area — the
+     rectangular sky above and the jagged floor below. The bottom rises
+     to meet the top of each column's terrain, so the SVG's fill IS the
+     playable region and its stroke IS the arena's frame. */
+  ArenaView.prototype._reshape = function (game) {
+    var w = game.width;
+    var totalRows = game.sky + game.height;
+    var rises = new Array(w).fill(0);
+    for (var i = 0; i < game.level.obstacles.length; i++) rises[game.level.obstacles[i].col]++;
+
+    var W = w * this.cellPx;
+    var H = totalRows * this.cellPx;
+    this.shape.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+
+    var pts = [];
+    pts.push('0,0');
+    pts.push(W + ',0');
+    /* Trace the jagged bottom from right to left — for each column drop
+       down to the top of its terrain, then walk left to the next column. */
+    for (var c = w - 1; c >= 0; c--) {
+      var yTop = (totalRows - rises[c]) * this.cellPx;
+      var xRight = (c + 1) * this.cellPx;
+      var xLeft = c * this.cellPx;
+      pts.push(xRight + ',' + yTop);
+      pts.push(xLeft + ',' + yTop);
+    }
+    this.shapePoly.setAttribute('points', pts.join(' '));
   };
 
   ArenaView.prototype.renderGrid = function (game) {
@@ -60,16 +104,16 @@
     for (var r = 0; r < total; r++) {
       for (var c = 0; c < game.width; c++) {
         var cell = game.grid[r][c];
+        /* Skip terrain cells — the arena's SVG shape already carves them
+           out of the play area, so a grid cell there would draw on top of
+           the outline. Also skip empty sky rows to save DOM. */
+        if (cell && cell.obstacle) continue;
         var d = el('div', 'cell', this.grid);
         d.style.gridRow = (r + 1);
         d.style.gridColumn = (c + 1);
         if (r < game.sky) d.classList.add('cell--sky');
         else d.classList.add('cell--arena');
-        if (cell && cell.obstacle) {
-          d.classList.add('cell--ground');
-        } else if (cell) {
-          this._paintBlock(d, cell.colour);
-        }
+        if (cell) this._paintBlock(d, cell.colour);
       }
     }
   };
@@ -187,8 +231,14 @@
   QueueView.prototype._paintThumb = function (container, shape, rot, colour) {
     container.innerHTML = '';
     var geom = global.Shapes.cellsOf(shape, rot);
+    /* --ox and --oy centre the piece horizontally and pin it to the bottom
+       of the fixed 4×4 box, so the queue never jumps when the next piece
+       has a different height or width. */
+    var slot = 4;
     container.style.setProperty('--pw', geom.cols);
     container.style.setProperty('--ph', geom.rows);
+    container.style.setProperty('--ox', (slot - geom.cols) / 2);
+    container.style.setProperty('--oy', slot - geom.rows);
     for (var i = 0; i < geom.cells.length; i++) {
       var cell = geom.cells[i];
       var d = el('div', 'block block--thumb', container);

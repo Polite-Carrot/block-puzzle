@@ -18,10 +18,10 @@
 
   var Shapes = global.Shapes;
 
-  /* Enough sky above the arena for the tallest piece to enter without
-     clipping the top, plus a couple of extra rows so the player has real
-     time to move and rotate before the piece reaches the pile. */
-  var SKY = 6;
+  /* Enough sky above the arena that any piece has real time to be moved
+     into place before it reaches the pile — eight rows at the slowest fall
+     is more than twenty seconds, and even the fastest board gives ten. */
+  var SKY = 8;
 
   function Game(level) {
     this.level = level;

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#79cbf2">
 <meta name="apple-mobile-web-app-title" content="Block Puzzle">
 <title>Block Puzzle</title>
@@ -20,15 +20,36 @@
         <span style="--c:#f5423c"></span><span style="--c:#0ec3c6"></span><span style="--c:#9a53ef"></span>
       </div>
       <h1>Block&nbsp;Puzzle</h1>
-      <p class="masthead__tag">Drop every piece under the line. One hundred puzzles, one solution each.</p>
+      <p class="masthead__tag">Drop every piece under the line. One thousand puzzles, one solution each.</p>
     </header>
 
     <div class="choices">
-      <button id="play" class="choice" type="button">
+      <button id="go-campaign" class="choice" type="button">
         <span class="choice__jar" aria-hidden="true"><i id="home-fill"></i></span>
         <span class="choice__body">
-          <span class="choice__name">Play</span>
-          <span class="choice__sub"><span id="home-progress">0 / 100</span> cleared</span>
+          <span class="choice__name">Campaign</span>
+          <span class="choice__sub"><span id="home-progress">0 / 1000</span> cleared</span>
+        </span>
+        <span class="choice__go" aria-hidden="true">›</span>
+      </button>
+
+      <button id="go-daily" class="choice" type="button">
+        <span class="choice__cal" aria-hidden="true">
+          <i class="choice__cal-top"></i>
+          <b id="home-daily-day">–</b>
+        </span>
+        <span class="choice__body">
+          <span class="choice__name">Daily Puzzle</span>
+          <span class="choice__sub" id="home-daily-sub">A fresh board every day</span>
+        </span>
+        <span class="choice__go" aria-hidden="true">›</span>
+      </button>
+
+      <button id="go-random" class="choice" type="button">
+        <span class="choice__shelf" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="choice__body">
+          <span class="choice__name">Random Puzzle</span>
+          <span class="choice__sub">Endless boards, on demand</span>
         </span>
         <span class="choice__go" aria-hidden="true">›</span>
       </button>
@@ -43,17 +64,76 @@
     </footer>
   </section>
 
-  <!-- ─────────────── levels ─────────────── -->
+  <!-- ─────────────── campaign ────────────── -->
   <section id="screen-levels" class="screen">
     <header class="subhead">
       <button id="levels-back" class="btn btn--ghost">&larr; Home</button>
       <div class="subhead__title">
-        <h2>Puzzles</h2>
-        <span>One hundred, in order</span>
+        <h2>Campaign</h2>
+        <span>One thousand, in order</span>
       </div>
       <span class="subhead__balance" aria-hidden="true"></span>
     </header>
+    <nav class="level-pager" id="level-pager" aria-label="Level pages">
+      <button id="pager-prev" class="btn btn--ghost btn--pager" aria-label="Previous page">&larr;</button>
+      <div class="pager__label" id="pager-label">Levels 1–100</div>
+      <button id="pager-next" class="btn btn--ghost btn--pager" aria-label="Next page">&rarr;</button>
+    </nav>
     <ol id="level-grid" class="level-grid"></ol>
+  </section>
+
+  <!-- ─────────────── daily ─────────────── -->
+  <section id="screen-daily" class="screen">
+    <header class="subhead">
+      <button id="daily-back" class="btn btn--ghost">&larr; Home</button>
+      <div class="subhead__title">
+        <h2>Daily Puzzle</h2>
+        <span id="daily-note"></span>
+      </div>
+      <span class="subhead__balance" aria-hidden="true"></span>
+    </header>
+
+    <div class="card card--single">
+      <div class="daily__date">
+        <span class="daily__day" id="daily-day">–</span>
+        <span class="daily__month" id="daily-month">–</span>
+      </div>
+      <p id="daily-status" class="card__body">Solve today’s board. Every day is a new one, the same for everyone.</p>
+      <button id="play-daily" class="btn btn--primary btn--wide">Play today’s puzzle</button>
+      <p id="daily-record" class="card__note"></p>
+    </div>
+  </section>
+
+  <!-- ─────────────── random ─────────────── -->
+  <section id="screen-random" class="screen">
+    <header class="subhead">
+      <button id="random-back" class="btn btn--ghost">&larr; Home</button>
+      <div class="subhead__title">
+        <h2>Random Puzzle</h2>
+        <span>Freshly dealt, and always solvable</span>
+      </div>
+      <span class="subhead__balance" aria-hidden="true"></span>
+    </header>
+
+    <div class="card card--single">
+      <div class="setting">
+        <div class="setting__head">
+          <span class="setting__label">Difficulty</span>
+          <b id="difficulty-name" class="setting__name">Easy</b>
+        </div>
+        <input id="difficulty" class="setting__slider" type="range"
+               min="0" max="4" step="1" value="0"
+               aria-label="Difficulty" aria-valuetext="Easy">
+        <div id="difficulty-ticks" class="setting__ticks" aria-hidden="true"></div>
+      </div>
+      <p id="difficulty-blurb" class="difficulty__blurb"></p>
+      <button id="play-random" class="btn btn--primary btn--wide">Deal me a puzzle</button>
+      <label class="seed">
+        <span>Seed</span>
+        <input id="seed-input" type="text" inputmode="numeric" placeholder="random" autocomplete="off">
+      </label>
+      <p id="random-record" class="card__note"></p>
+    </div>
   </section>
 
   <!-- ─────────────── game ─────────────── -->
@@ -83,7 +163,7 @@
     <div class="toolbar">
       <button id="undo" class="btn">Undo</button>
       <button id="restart" class="btn">Restart</button>
-      <button id="game-settings" class="btn btn--icon" type="button" aria-label="Settings">⚙</button>
+      <button id="game-settings" class="btn" type="button">Settings</button>
     </div>
 
     <p id="status" class="status" role="status" aria-live="polite">&nbsp;</p>
@@ -91,9 +171,12 @@
 
   <!-- ─────────────── win ─────────────── -->
   <div id="overlay" class="overlay" hidden>
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="win-title">
-      <h2 id="win-title">Cleared</h2>
-      <div class="stars" id="win-stars" aria-hidden="true"></div>
+    <div class="modal modal--result" role="dialog" aria-modal="true" aria-labelledby="win-title">
+      <div class="result__flare" aria-hidden="true">
+        <span></span><span></span><span></span><span></span>
+      </div>
+      <div class="result__badge result__badge--win" aria-hidden="true">✓</div>
+      <h2 id="win-title" class="result__title result__title--win">Cleared!</h2>
       <p class="modal__line" id="win-line">Every piece under the line.</p>
       <div class="modal__actions">
         <button id="win-next" class="btn btn--primary">Next</button>
@@ -105,9 +188,13 @@
 
   <!-- ─────────────── fail ─────────────── -->
   <div id="fail-overlay" class="overlay" hidden>
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="fail-title">
-      <h2 id="fail-title">Level failed</h2>
-      <p class="modal__line">A piece went above the line.</p>
+    <div class="modal modal--result modal--result-fail" role="dialog" aria-modal="true" aria-labelledby="fail-title">
+      <div class="result__flare result__flare--fail" aria-hidden="true">
+        <span></span><span></span><span></span><span></span>
+      </div>
+      <div class="result__badge result__badge--fail" aria-hidden="true">✕</div>
+      <h2 id="fail-title" class="result__title result__title--fail">Level failed!</h2>
+      <p class="modal__line" id="fail-line">A piece went above the line.</p>
       <div class="modal__actions">
         <button id="fail-retry" class="btn btn--primary">Retry</button>
         <button id="fail-menu" class="btn btn--ghost">Menu</button>
@@ -159,6 +246,7 @@
 <script src="js/palette.js"></script>
 <script src="js/shapes.js"></script>
 <script src="js/engine.js"></script>
+<script src="js/generator.js"></script>
 <script src="js/levels.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/app.js"></script>

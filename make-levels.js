@@ -20,9 +20,11 @@ const path = require('path');
 require('./js/palette.js');
 require('./js/shapes.js');
 require('./js/engine.js');
+require('./js/generator.js');
 
 const Shapes = globalThis.Shapes;
 const Engine = globalThis.Engine;
+const Generator = globalThis.Generator;
 const SKY = Engine.SKY;
 
 /* mulberry32 — small, fast, deterministic. */
@@ -65,12 +67,12 @@ function paramsFor(level) {
   /* Base grows with the level index. Small per-level offsets keep the shape
      of adjacent boards from repeating: pattern arrays are deterministic so
      regenerating never changes what any level was. */
-  const wBase = 3 + Math.floor(t * 5);       /* 3 → 8 */
-  const hBase = 3 + Math.floor(t * 7);       /* 3 → 10 */
+  const wBase = 4 + Math.floor(t * 4);       /* 4 → 8 */
+  const hBase = 4 + Math.floor(t * 6);       /* 4 → 10 */
   const wOff  = [0, 1, 0, -1, 1, 2][level % 6];
   const hOff  = [1, 0, 2, 1, -1, 1, 2][level % 7];
-  const w = Math.max(3, Math.min(8, wBase + wOff));
-  const h = Math.max(3, Math.min(11, hBase + hOff));
+  const w = Math.max(4, Math.min(8, wBase + wOff));
+  const h = Math.max(4, Math.min(11, hBase + hOff));
 
   /* Terrain rise per column. 0 for the first fifteen dealt levels, then up
      to a jagged four rows by level 100. Capped at half the arena so at
@@ -99,8 +101,8 @@ const TEACH = [
     width: 4, height: 2, obstacles: [],
     fallSpeed: 0.3,
     pieces: [
-      { shape: 'tet_o', colour: 'red',  rot: 0, col: 0, top: 6 },
-      { shape: 'tet_o', colour: 'blue', rot: 0, col: 2, top: 6 }
+      { shape: 'tet_o', colour: 'red',  rot: 0, col: 0, top: 8 },
+      { shape: 'tet_o', colour: 'blue', rot: 0, col: 2, top: 8 }
     ]
   },
   {
@@ -109,10 +111,10 @@ const TEACH = [
     width: 4, height: 3, obstacles: [],
     fallSpeed: 0.32,
     pieces: [
-      { shape: 'tet_o', colour: 'red',    rot: 0, col: 0, top: 7 },
-      { shape: 'tet_o', colour: 'blue',   rot: 0, col: 2, top: 7 },
-      { shape: 'dom',   colour: 'teal',   rot: 0, col: 0, top: 6 },
-      { shape: 'dom',   colour: 'purple', rot: 0, col: 2, top: 6 }
+      { shape: 'tet_o', colour: 'red',    rot: 0, col: 0, top: 9 },
+      { shape: 'tet_o', colour: 'blue',   rot: 0, col: 2, top: 9 },
+      { shape: 'dom',   colour: 'teal',   rot: 0, col: 0, top: 8 },
+      { shape: 'dom',   colour: 'purple', rot: 0, col: 2, top: 8 }
     ]
   },
   {
@@ -121,9 +123,9 @@ const TEACH = [
     width: 3, height: 4, obstacles: [],
     fallSpeed: 0.32,
     pieces: [
-      { shape: 'tet_i', colour: 'red',  rot: 1, col: 0, top: 6 },
-      { shape: 'tet_i', colour: 'blue', rot: 1, col: 1, top: 6 },
-      { shape: 'tet_i', colour: 'teal', rot: 1, col: 2, top: 6 }
+      { shape: 'tet_i', colour: 'red',  rot: 1, col: 0, top: 8 },
+      { shape: 'tet_i', colour: 'blue', rot: 1, col: 1, top: 8 },
+      { shape: 'tet_i', colour: 'teal', rot: 1, col: 2, top: 8 }
     ]
   },
   {
@@ -133,11 +135,11 @@ const TEACH = [
     obstacles: [{ row: 3, col: 0 }, { row: 3, col: 3 }],
     fallSpeed: 0.32,
     pieces: [
-      { shape: 'dom',   colour: 'red',    rot: 0, col: 1, top: 9 },
-      { shape: 'tet_o', colour: 'blue',   rot: 0, col: 0, top: 7 },
-      { shape: 'tet_o', colour: 'teal',   rot: 0, col: 2, top: 7 },
-      { shape: 'dom',   colour: 'purple', rot: 0, col: 0, top: 6 },
-      { shape: 'dom',   colour: 'green',  rot: 0, col: 2, top: 6 }
+      { shape: 'dom',   colour: 'red',    rot: 0, col: 1, top: 11 },
+      { shape: 'tet_o', colour: 'blue',   rot: 0, col: 0, top: 9 },
+      { shape: 'tet_o', colour: 'teal',   rot: 0, col: 2, top: 9 },
+      { shape: 'dom',   colour: 'purple', rot: 0, col: 0, top: 8 },
+      { shape: 'dom',   colour: 'green',  rot: 0, col: 2, top: 8 }
     ]
   },
   {
@@ -146,10 +148,10 @@ const TEACH = [
     width: 4, height: 4, obstacles: [],
     fallSpeed: 0.32,
     pieces: [
-      { shape: 'tet_i', colour: 'red',    rot: 0, col: 0, top: 9 },
-      { shape: 'tet_o', colour: 'blue',   rot: 0, col: 0, top: 7 },
-      { shape: 'tet_o', colour: 'teal',   rot: 0, col: 2, top: 7 },
-      { shape: 'tet_i', colour: 'purple', rot: 0, col: 0, top: 6 }
+      { shape: 'tet_i', colour: 'red',    rot: 0, col: 0, top: 11 },
+      { shape: 'tet_o', colour: 'blue',   rot: 0, col: 0, top: 9 },
+      { shape: 'tet_o', colour: 'teal',   rot: 0, col: 2, top: 9 },
+      { shape: 'tet_i', colour: 'purple', rot: 0, col: 0, top: 8 }
     ]
   }
 ];
@@ -439,7 +441,6 @@ for (let i = 0; i < TEACH.length; i++) {
   const t = TEACH[i];
   levels.push({
     id: 'level-' + String(i + 1).padStart(3, '0'),
-    name: t.name,
     brief: t.brief,
     width: t.width,
     height: t.height,
@@ -449,10 +450,12 @@ for (let i = 0; i < TEACH.length; i++) {
   });
 }
 
-for (let i = TEACH.length + 1; i <= 100; i++) {
+const TOTAL_LEVELS = 1000;
+for (let i = TEACH.length + 1; i <= TOTAL_LEVELS; i++) {
   const seed = 90210 + i * 137;
-  const level = buildLevel(i, seed);
+  const level = Generator.buildCampaignLevel(i, seed);
   levels.push(level);
+  if (i % 100 === 0) console.log('  tiled ' + i + ' / ' + TOTAL_LEVELS);
 }
 
 /* ── emit ──────────────────────────────────────────────────────────────── */
@@ -482,7 +485,7 @@ for (const lvl of levels) {
     .map(p => `{s:'${p.shape}',c:'${p.colour}',r:${p.rot},x:${p.col},t:${p.top}}`).join(',') + ']';
   const brief = lvl.brief ? `, brief: ${jsonish(lvl.brief)}` : '';
   lines.push(
-    `    { id: '${lvl.id}', name: ${jsonish(lvl.name)}${brief}, width: ${lvl.width}, height: ${lvl.height}, fallSpeed: ${lvl.fallSpeed}, obstacles: ${obs}, pieces: ${pieces} },`
+    `    { id: '${lvl.id}'${brief}, width: ${lvl.width}, height: ${lvl.height}, fallSpeed: ${lvl.fallSpeed}, obstacles: ${obs}, pieces: ${pieces} },`
   );
 }
 lines.push('  ];');
