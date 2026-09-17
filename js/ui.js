@@ -44,7 +44,9 @@
     this.ceiling = el('div', 'arena__ceiling', this.frame);
     this.grid = el('div', 'arena__grid', this.frame);
     this.ghost = el('div', 'arena__ghost', this.frame);
+    this.ghostInner = el('div', 'arena__layer', this.ghost);
     this.piece = el('div', 'arena__piece', this.frame);
+    this.pieceInner = el('div', 'arena__layer', this.piece);
     this.width = 0;
     this.height = 0;
     this.cellPx = 0;
@@ -150,9 +152,9 @@
     }
   };
 
-  ArenaView.prototype._placeLayer = function (node, row, col) {
-    node.style.transform = 'translate(' +
-      (col * this.cellPx) + 'px, ' + (row * this.cellPx) + 'px)';
+  ArenaView.prototype._placeLayer = function (outer, inner, row, col) {
+    outer.style.transform = 'translateX(' + (col * this.cellPx) + 'px)';
+    inner.style.transform = 'translateY(' + (row * this.cellPx) + 'px)';
   };
 
   /* Paint the current piece at whatever integer + fractional row the engine
@@ -167,19 +169,20 @@
     if (!pc || game.lost || game.won) {
       this.piece.style.opacity = '0';
       this.ghost.style.opacity = '0';
-      this.piece.innerHTML = '';
-      this.ghost.innerHTML = '';
+      this.pieceInner.innerHTML = '';
+      this.ghostInner.innerHTML = '';
       return;
     }
-    this._paintPiece(this.piece, pc.shape, game.currentRot, pc.colour);
-    this._paintPiece(this.ghost, pc.shape, game.currentRot, pc.colour, { ghost: true });
+    this._paintPiece(this.pieceInner, pc.shape, game.currentRot, pc.colour);
+    this._paintPiece(this.ghostInner, pc.shape, game.currentRot, pc.colour, { ghost: true });
     var landing = game.landingRow(game.currentRot, game.currentCol);
-    this._placeLayer(this.piece, game.currentRow + (game.subrow || 0), game.currentCol);
+    this._placeLayer(this.piece, this.pieceInner,
+      game.currentRow + (game.subrow || 0), game.currentCol);
     this.piece.style.opacity = '1';
     if (landing === null || landing < game.sky) {
       this.ghost.style.opacity = '0';
     } else {
-      this._placeLayer(this.ghost, landing, game.currentCol);
+      this._placeLayer(this.ghost, this.ghostInner, landing, game.currentCol);
       this.ghost.style.opacity = landing === game.currentRow ? '0' : '0.28';
     }
   };

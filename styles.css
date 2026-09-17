@@ -30,6 +30,7 @@
   --accent-deep: #e0446f;
   --gold:        #ffc93c;
   --grass:       #35c46b;
+  --danger:      #d8365f;
   --rock:        #9aa6b8;
   --rock-edge:   #6b7688;
 
@@ -118,6 +119,7 @@ body.playing #screen-game.is-active {
 }
 body.playing #screen-game.is-active > * { flex: none; margin-block: 0; }
 body.playing #screen-game.is-active > .board { flex: 1 1 0; min-height: 0; }
+body.playing.is-tight #screen-game.is-active { gap: 5px; }
 
 @keyframes rise {
   from { opacity: 0; transform: translateY(14px) scale(.985); }
@@ -383,28 +385,74 @@ body.playing #screen-game.is-active > .board { flex: 1 1 0; min-height: 0; }
 .card__body { margin: 0 0 16px; color: var(--ink-soft); font-size: 15px; }
 .card__note { margin: 14px 0 0; color: var(--ink-soft); font-size: 14px; min-height: 1.2em; }
 
-/* Daily's big date at the top of its card, dressed like a diary page. */
-.daily__date {
-  text-align: center;
-  margin: 0 0 14px;
-  padding: 8px 0 14px;
-  border-bottom: 2px dashed var(--ink-faint);
+/* ───────── the calendar of days ───────── */
+
+.cal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
 }
-.daily__day {
-  display: block;
+.cal__head h3 {
+  margin: 0;
+  flex: 1;
   font-family: "Baloo 2", sans-serif;
   font-weight: 800;
-  font-size: 56px;
-  line-height: 1;
-  color: var(--ink);
+  font-size: 21px;
 }
-.daily__month {
-  display: block;
-  margin-top: 4px;
-  font-size: 14px;
-  letter-spacing: .18em;
-  text-transform: uppercase;
+.cal__head .btn { padding: 6px 14px; font-size: 22px; line-height: 1; }
+
+.cal__names, .cal {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cal__names {
+  margin-bottom: 6px;
   color: var(--ink-soft);
+  font-weight: 800;
+  font-size: 13px;
+  text-align: center;
+}
+
+.cal__day {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  background: var(--paper-warm);
+  font-family: "Baloo 2", sans-serif;
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 0;
+}
+.cal__day:hover:not(:disabled) { background: #fff; }
+.cal__day:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.cal__day:disabled { opacity: .38; cursor: default; border-style: dashed; }
+.cal__day.is-today { box-shadow: 0 0 0 3px var(--gold); }
+.cal__day.is-done { background: var(--grass); color: #fff; }
+.cal--blank { visibility: hidden; }
+
+.cal__legend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 12px 0 0;
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  font-weight: 700;
+  min-height: 1.2em;
 }
 
 /* ───────── the difficulty slider ─────────
@@ -736,7 +784,9 @@ body.cb-assist .cell__mark { display: block; opacity: .9; }
 }
 
 /* The piece and ghost layers: one wrapper each, positioned by inline
-   transform, blocks laid out inside using --r and --c. */
+   transform, blocks laid out inside using --r and --c. The wrapper carries
+   the column so a sideways move can ease across; the inner layer carries
+   the fall, which is rewritten every frame and must never lag behind. */
 .arena__piece,
 .arena__ghost {
   position: absolute;
@@ -744,9 +794,15 @@ body.cb-assist .cell__mark { display: block; opacity: .9; }
   width: 0;
   height: 0;
   pointer-events: none;
-  transform: translate(0, 0);
-  transition: transform .06s linear, opacity .12s ease;
+  transform: translateX(0);
+  transition: transform .1s cubic-bezier(.25, .8, .35, 1), opacity .12s ease;
   z-index: 3;
+}
+.arena__layer {
+  position: absolute;
+  left: 0; top: 0;
+  transform: translateY(0);
+  will-change: transform;
 }
 .arena__ghost { z-index: 2; }
 
@@ -822,6 +878,17 @@ body.cb-assist .block__mark { display: block; opacity: .9; }
   width: calc(var(--qslot) * var(--qcell) + 4px);
 }
 .queue__slot.is-now { --qcell: 18px; }
+
+/* When the arena cannot get a comfortable cell size, the queue gives up
+   its height first — a cramped board is worse than small thumbnails. */
+.shelf-wrap--compact .queue { gap: 4px; padding: 3px 8px 2px; }
+.shelf-wrap--compact .queue__slot { --qcell: 9px; gap: 1px; }
+.shelf-wrap--compact .queue__slot.is-now { --qcell: 12px; }
+.shelf-wrap--compact .queue__cue {
+  font-size: 8px;
+  padding: 0 4px;
+  border-width: 1.5px;
+}
 .queue__cue {
   font-family: "Baloo 2", sans-serif;
   font-weight: 800;
@@ -911,6 +978,41 @@ body.cb-assist .block__mark { display: block; opacity: .9; }
   overflow-y: auto;
 }
 .modal--wide { max-width: 540px; }
+
+/* The link is stacked above the single button rather than beside it, so the
+   button stays the obvious thing to press and the link is not mistaken for a
+   second answer. Stuck to the bottom so a consent dialog's only button can
+   never end up below the fold on a short screen. */
+.modal__actions--consent {
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 18px;
+  position: sticky;
+  bottom: -22px;
+  margin-left: -22px;
+  margin-right: -22px;
+  padding: 10px 22px 22px;
+  background: var(--paper);
+}
+
+/* Drawn in the app's own ink rather than left as browser blue, and padded
+   out to a 44px tap target — the link is small text, the finger is not. */
+.policy-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  color: var(--ink-soft);
+  font-family: "Baloo 2", sans-serif;
+  font-weight: 800;
+  font-size: 15px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 2px;
+}
+.policy-link:active { color: var(--ink); }
+.policy-link[hidden] { display: none; }
 @keyframes modalIn {
   from { opacity: 0; transform: translateY(20px) scale(.95); }
   to   { opacity: 1; transform: none; }
@@ -958,18 +1060,30 @@ body.cb-assist .block__mark { display: block; opacity: .9; }
 .result__badge {
   width: 74px;
   height: 74px;
+  flex: none;
+  aspect-ratio: 1;
   margin: 0 auto 10px;
   border-radius: 50%;
   border: var(--stroke) solid var(--ink);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: "Baloo 2", sans-serif;
-  font-weight: 800;
-  font-size: 44px;
   color: #fff;
   box-shadow: 0 4px 0 var(--ink);
   animation: badgePop .55s cubic-bezier(.25,.9,.35,1.5) both;
+}
+/* Drawn rather than typed: the tick and cross characters carry their own
+   font bearings, which left the mark sitting off-centre in the circle. */
+.result__mark {
+  width: 48%;
+  height: 48%;
+  display: block;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .result__badge--win  { background: var(--grass); }
 .result__badge--fail { background: var(--accent); animation-name: badgeShake; }
@@ -1057,6 +1171,71 @@ body.cb-assist .block__mark { display: block; opacity: .9; }
   border-top: 1px solid var(--ink-faint);
 }
 .settings-row:first-child { border-top: 0; }
+
+/* Set after .settings-row, whose border shorthand would otherwise reset the
+   colour. */
+.settings-row--danger { border-color: var(--danger); }
+.settings-row--danger > span { color: var(--danger); }
+
+/* ───────── press and hold to erase ───────── */
+
+.hold {
+  position: relative;
+  display: block;
+  width: 100%;
+  margin: 4px 0 2px;
+  padding: 16px 18px;
+  border: var(--stroke) solid var(--ink);
+  border-radius: 16px;
+  background: var(--paper-warm);
+  box-shadow: 0 5px 0 var(--ink);
+  font: inherit;
+  font-family: "Baloo 2", sans-serif;
+  font-weight: 800;
+  font-size: 19px;
+  color: var(--ink);
+  cursor: pointer;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;          /* holding must not scroll the page instead */
+}
+.hold:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.hold:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--ink); }
+
+/* Driven from script rather than a transition, so letting go stops the bar
+   dead instead of animating on to somewhere it never reached. */
+.hold__fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  transform: scaleX(var(--held, 0));
+  background: linear-gradient(90deg, #ff8fb1, var(--danger));
+  border-radius: 0;
+}
+.hold__label { position: relative; }
+.hold.is-done .hold__fill { background: var(--grass); }
+
+/* Rows in the privacy dialogs stack a title, a small note, and a toggle, so a
+   two-line description is not clipped by the default label/toggle row. */
+.settings-row--stack { align-items: flex-start; }
+.settings-row--stack > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.settings-row--stack > div > b {
+  font-family: "Baloo 2", sans-serif;
+  font-weight: 800;
+  font-size: 17px;
+  color: var(--ink);
+  display: block;
+}
+.settings-row__note {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
 
 /* ───────── confetti ───────── */
 

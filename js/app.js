@@ -25,6 +25,10 @@
   var RANDOM_KEY   = 'blockpuzzle.random.v1';
   var PREFS_KEY    = 'blockpuzzle.prefs.v1';
 
+  /* The consent dialog links here, and the same URL goes on both store
+     listings. */
+  var PRIVACY_POLICY_URL = 'https://politecarrot.com/privacy';
+
   var $ = function (id) { return document.getElementById(id); };
 
   var state = {
@@ -36,7 +40,11 @@
     /* Random difficulty 0..4; Daily uses a fixed tier below. */
     difficulty: 1,
     seed: 0,
-    prefs: { sound: true, cbAssist: false },
+    calMonth: null,
+    dailyDate: null,
+    /* null means never asked — that is what brings up the consent dialog on
+       the first run. Once answered it is true or false for good. */
+    prefs: { sound: true, cbAssist: false, analytics: null, personalizedAds: false },
     progress: {},
     dailyState: {},
     randomState: {},
@@ -171,24 +179,52 @@
   }
 
   function renderDaily() {
-    var today = new Date();
-    var monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'];
-    $('daily-day').textContent = today.getDate();
-    $('daily-month').textContent = monthNames[today.getMonth()] + ' ' + today.getFullYear();
-    $('daily-note').textContent = monthNames[today.getMonth()] + ' ' + today.getDate();
-    var id = Generator.dailyToday();
-    var status = state.dailyState[id];
-    var msg = $('daily-status');
-    var btn = $('play-daily');
-    if (status === 'won') {
-      msg.textContent = 'Solved today. Come back tomorrow for a fresh one.';
-      btn.textContent = 'Play again';
-    } else {
-      msg.textContent = 'A fresh board, seeded by the calendar. Everyone gets the same puzzle today.';
-      btn.textContent = 'Play today\u2019s puzzle';
+    var D = window.Daily;
+    if (!state.calMonth) {
+      var t = D.today();
+      state.calMonth = new Date(t.getFullYear(), t.getMonth(), 1);
     }
-    $('daily-record').textContent = '';
+
+    $('cal-month').textContent = D.monthTitle(state.calMonth);
+
+    /* Months before the first daily, or after this one, are not worth
+       offering — there is nothing in them either way. */
+    var first = D.first(), now = D.today();
+    $('cal-prev').disabled = state.calMonth <= new Date(first.getFullYear(), first.getMonth(), 1);
+    $('cal-next').disabled = state.calMonth >= new Date(now.getFullYear(), now.getMonth(), 1);
+
+    var grid = $('cal-grid');
+    grid.innerHTML = '';
+    D.monthGrid(state.calMonth).forEach(function (date) {
+      var li = UI.el('li', null, grid);
+      if (!date) { li.className = 'cal--blank'; return; }
+
+      var open = D.playable(date);
+      var done = state.dailyState[D.seedFor(date)] === 'won';
+
+      var btn = UI.el('button', 'cal__day', li);
+      btn.type = 'button';
+      btn.disabled = !open;
+      if (done) btn.classList.add('is-done');
+      if (D.seedFor(date) === D.seedFor(now)) btn.classList.add('is-today');
+      btn.textContent = date.getDate();
+      btn.setAttribute('aria-label', D.title(date) + ', ' +
+        (done ? 'solved' : open ? 'not played yet' : 'not open yet'));
+      btn.title = D.title(date);
+      if (open) btn.addEventListener('click', function () { startDailyLevel(date); });
+    });
+
+    var streak = D.streak(state.dailyState);
+    var solved = Object.keys(state.dailyState).length;
+    $('daily-note').textContent = D.monthTitle(now);
+    $('daily-status').textContent = streak
+      ? streak + ' day streak · ' + solved + ' solved'
+      : solved ? solved + ' solved' : 'Play today to start a streak';
+  }
+
+  function stepMonth(by) {
+    state.calMonth = new Date(state.calMonth.getFullYear(), state.calMonth.getMonth() + by, 1);
+    renderDaily();
   }
 
   var DIFFICULTY_NAMES = Generator.RANDOM_TIERS.map(function (t) { return t.name; });
@@ -222,9 +258,11 @@
     startLevel(LEVELS[idx - 1]);
   }
 
-  function startDailyLevel() {
+  function startDailyLevel(date) {
     state.mode = 'daily';
-    var seed = Generator.dailyToday();
+    var day = date || window.Daily.today();
+    state.dailyDate = day;
+    var seed = window.Daily.seedFor(day);
     state.seed = seed;
     var level = Generator.buildRandomLevel(DAILY_TIER, seed);
     if (!level) { alert('Could not deal today\u2019s puzzle. Please try again later.'); return; }
@@ -245,9 +283,15 @@
 
   function startLevel(level) {
     stopFallLoop();
+    state.softDrop = false;
     $('overlay').hidden = true;
     $('fail-overlay').hidden = true;
     state.game = new Engine.Game(level);
+    track('level_start', {
+      mode: state.mode,
+      level: state.mode === 'campaign' ? state.levelIndex : undefined,
+      difficulty: state.mode === 'random' ? state.difficulty : undefined
+    });
     var title = state.mode === 'campaign'
       ? 'Level ' + state.levelIndex
       : (state.mode === 'daily' ? 'Daily Puzzle' : 'Random Puzzle');
@@ -255,7 +299,7 @@
     if (state.mode === 'campaign') {
       $('level-sub').textContent = 'Level ' + state.levelIndex + ' of ' + LEVELS.length;
     } else if (state.mode === 'daily') {
-      $('level-sub').textContent = todayLabel();
+      $('level-sub').textContent = window.Daily.title(state.dailyDate || window.Daily.today());
     } else {
       $('level-sub').textContent = DIFFICULTY_NAMES[state.difficulty] +
         ' \u00b7 seed ' + state.seed;
@@ -266,6 +310,10 @@
     if (!queue) queue = new UI.QueueView($('queue'));
     if (!confetti) confetti = new UI.Confetti($('confetti'));
     showScreen('screen-game');
+    /* The queue shares the column with the board, so it has to be filled
+       before the board is measured — otherwise fitBoard sizes the cells
+       against a box that is about to shrink. */
+    queue.render(state.game.level, state.game.currentIdx);
     requestAnimationFrame(function () {
       fitBoard();
       redraw();
@@ -273,33 +321,60 @@
     });
   }
 
-  function todayLabel() {
-    var d = new Date();
-    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
-  }
-
   /* Cell size that fits the arena inside the .board container. Reserves
      18px for the frame's drop shadow and a touch of breathing room, and
      shrinks cells down to 10px on tiny viewports so both the top runway
      and the pile at the bottom stay visible. */
-  function fitBoard() {
-    if (!state.game || !arena) return;
-    var g = state.game;
+  var COMFORT_CELL = 22;
+
+  function measureCell(g) {
     var boardEl = document.querySelector('.board');
     var boardW = boardEl.clientWidth - 4;
     var boardH = boardEl.clientHeight - 18;
-    if (boardW <= 0 || boardH <= 0) return;
+    if (boardW <= 0 || boardH <= 0) return 0;
     var byW = Math.floor(boardW / g.width);
     var byH = Math.floor(boardH / (g.height + g.sky));
-    var cell = Math.max(10, Math.min(56, Math.min(byH, byW)));
+    return Math.max(10, Math.min(56, Math.min(byH, byW)));
+  }
+
+  function setTight(on) {
+    document.querySelector('.shelf-wrap').classList.toggle('shelf-wrap--compact', on);
+    document.body.classList.toggle('is-tight', on);
+  }
+
+  function fitBoard() {
+    if (!state.game || !arena) return false;
+    var g = state.game;
+    /* Always judged from the roomy layout, so the outcome depends only on
+       the viewport and never on the state left by the previous fit. */
+    setTight(false);
+    var cell = measureCell(g);
+    if (!cell) return false;
+    if (cell < COMFORT_CELL) {
+      setTight(true);
+      var tighter = measureCell(g);
+      if (tighter > cell) cell = tighter;
+      else setTight(false);
+    }
+    if (cell === arena.cellPx && g.width === arena.width &&
+        g.height === arena.height && g.sky === arena.sky) return false;
     arena.layout(g, cell);
+    return true;
   }
 
   window.addEventListener('resize', function () {
     if (state.game) { fitBoard(); redraw(); }
   });
+
+  /* The board also changes height without a window resize — web fonts
+     landing, the brief rewrapping, the queue filling out. Refit on those
+     too, or a tall arena keeps the cell size it was given while the box
+     underneath it shrinks. */
+  if (window.ResizeObserver) {
+    new ResizeObserver(function () {
+      if (state.game && fitBoard()) redraw();
+    }).observe(document.querySelector('.board'));
+  }
 
   function redraw() {
     if (!state.game) return;
@@ -415,6 +490,7 @@
     var game = state.game;
     if (!game || !game.canUndo() || game.won) return;
     game.undo();
+    track('undo');
     Sound.undo();
     $('fail-overlay').hidden = true;
     redraw();
@@ -424,8 +500,10 @@
   function restart() {
     var game = state.game;
     if (!game) return;
+    state.softDrop = false;
     $('fail-overlay').hidden = true;
     game.restart();
+    track('level_restart', { mode: state.mode });
     redraw();
     state.lastTime = performance.now();
     startFallLoop();
@@ -457,6 +535,12 @@
   var press = null;
   var TAP_MOVE_TOLERANCE = 6;
   var TAP_TIME_MS = 300;
+  /* A drag commits to one axis and stays there, so the wobble in a downward
+     swipe cannot walk the piece across columns. */
+  var AXIS_LOCK_PX = 10;
+  var AXIS_DOMINANCE = 1.3;
+  var STEP_FRACTION = 0.9;   /* of a cell of travel per column step */
+  var DROP_FRACTION = 0.5;   /* of a cell downwards to commit the drop */
 
   function onPointerDown(ev) {
     if (!state.game || state.game.won || state.game.lost) return;
@@ -468,6 +552,7 @@
       startY: ev.clientY,
       stepsMoved: 0,
       softDrop: false,
+      axis: null,
       startTime: performance.now(),
       tapCandidate: true,
       consumed: false
@@ -484,30 +569,43 @@
     if (Math.abs(dx) > TAP_MOVE_TOLERANCE || Math.abs(dy) > TAP_MOVE_TOLERANCE) {
       press.tapCandidate = false;
     }
-    var targetSteps = Math.round(dx / cell);
+    if (!press.axis) {
+      var ax = Math.abs(dx), ay = Math.abs(dy);
+      if (ax > AXIS_LOCK_PX && ax > ay * AXIS_DOMINANCE) press.axis = 'x';
+      else if (ay > AXIS_LOCK_PX && ay > ax * AXIS_DOMINANCE) press.axis = 'y';
+      else return;
+    }
+    if (press.axis === 'y') {
+      /* The drop is latched rather than held: it runs until the piece locks,
+         so seeing it home takes one swipe instead of a dozen. */
+      if (!press.softDrop && dy > cell * DROP_FRACTION) {
+        press.softDrop = true;
+        state.softDrop = true;
+      }
+      return;
+    }
+    var targetSteps = Math.trunc(dx / (cell * STEP_FRACTION));
+    var moved = false;
     while (press.stepsMoved < targetSteps) {
       if (!game.tryMove(1)) break;
       press.stepsMoved++;
-      Sound.move();
+      moved = true;
     }
     while (press.stepsMoved > targetSteps) {
       if (!game.tryMove(-1)) break;
       press.stepsMoved--;
-      Sound.move();
+      moved = true;
     }
-    var wantSoft = dy > cell * 0.4;
-    if (wantSoft !== press.softDrop) {
-      press.softDrop = wantSoft;
-      state.softDrop = wantSoft;
-    }
-    redraw();
+    /* Only the piece layer moves here — repainting the grid and the queue on
+       every pointer event is what made the drag stutter. */
+    if (moved) { Sound.move(); arena.showCurrent(game); }
   }
 
   function onPointerUp() {
     if (!press) return;
     var elapsed = performance.now() - press.startTime;
     if (!press.consumed && press.tapCandidate && elapsed < TAP_TIME_MS) rotate();
-    state.softDrop = false;
+    if (!press.softDrop) state.softDrop = false;
     press = null;
   }
   function onPointerCancel() {
@@ -553,6 +651,11 @@
   function onWin() {
     stopFallLoop();
     Sound.win();
+    track('level_complete', {
+      mode: state.mode,
+      level: state.mode === 'campaign' ? state.levelIndex : undefined,
+      difficulty: state.mode === 'random' ? state.difficulty : undefined
+    });
     if (state.mode === 'campaign') {
       state.progress.completed[state.levelIndex] = true;
       saveJSON(PROGRESS_KEY, state.progress);
@@ -560,6 +663,7 @@
       state.dailyState[state.seed] = 'won';
       saveJSON(DAILY_KEY, state.dailyState);
     }
+    if (window.Ads) window.Ads.noteLevelComplete();
     var used = state.game.level.pieces
       .map(function (p) { return p.colour; })
       .filter(function (v, i, a) { return a.indexOf(v) === i; });
@@ -593,6 +697,11 @@
 
   function onLost() {
     stopFallLoop();
+    track('level_fail', {
+      mode: state.mode,
+      level: state.mode === 'campaign' ? state.levelIndex : undefined,
+      difficulty: state.mode === 'random' ? state.difficulty : undefined
+    });
     setTimeout(function () {
       $('fail-line').textContent = pickLine(FAIL_LINES);
       var overlay = $('fail-overlay');
@@ -637,15 +746,21 @@
 
   function goNext() {
     $('overlay').hidden = true;
-    if (state.mode === 'campaign') {
-      var next = state.levelIndex + 1;
-      if (next > LEVELS.length) { backToMenu(); return; }
-      startCampaignLevel(next);
-    } else if (state.mode === 'random') {
-      startRandomLevel(Math.floor(Math.random() * 2147483647));
-    } else {
-      backToMenu();
-    }
+    /* Interstitial cadence is gated inside Ads — this call is safe to fire
+       from every screen transition after a win; it no-ops until both two
+       minutes and three levels have passed since the last one. */
+    var afterAd = window.Ads ? window.Ads.maybeShowInterstitial() : Promise.resolve();
+    afterAd.then(function () {
+      if (state.mode === 'campaign') {
+        var next = state.levelIndex + 1;
+        if (next > LEVELS.length) { backToMenu(); return; }
+        startCampaignLevel(next);
+      } else if (state.mode === 'random') {
+        startRandomLevel(Math.floor(Math.random() * 2147483647));
+      } else {
+        backToMenu();
+      }
+    });
   }
 
   /* ── boot ───────────────────────────────────────────────────────────── */
@@ -653,17 +768,21 @@
   function wire() {
     $('go-campaign').addEventListener('click', function () {
       state.mode = 'campaign';
+      track('mode_selected', { mode: 'campaign' });
       clampPagerToUnlocked();
       renderLevelGrid();
       showScreen('screen-levels');
     });
     $('go-daily').addEventListener('click', function () {
       state.mode = 'daily';
+      track('mode_selected', { mode: 'daily' });
+      state.calMonth = null;                 /* always open on this month */
       renderDaily();
       showScreen('screen-daily');
     });
     $('go-random').addEventListener('click', function () {
       state.mode = 'random';
+      track('mode_selected', { mode: 'random' });
       renderRandom();
       showScreen('screen-random');
     });
@@ -678,7 +797,8 @@
       if (pagerPage < pageCount() - 1) { pagerPage++; renderLevelGrid(); }
     });
 
-    $('play-daily').addEventListener('click', startDailyLevel);
+    $('cal-prev').addEventListener('click', function () { stepMonth(-1); });
+    $('cal-next').addEventListener('click', function () { stepMonth(1); });
     $('play-random').addEventListener('click', function () {
       var raw = $('seed-input').value.trim();
       var seed = raw === '' ? Math.floor(Math.random() * 2147483647) : (parseInt(raw, 10) >>> 0);
@@ -699,15 +819,21 @@
     $('win-next').addEventListener('click', goNext);
     $('win-retry').addEventListener('click', function () {
       $('overlay').hidden = true;
-      if (state.mode === 'campaign') startCampaignLevel(state.levelIndex);
-      else if (state.mode === 'daily') startDailyLevel();
-      else startRandomLevel(state.seed);
+      var afterAd = window.Ads ? window.Ads.maybeShowInterstitial() : Promise.resolve();
+      afterAd.then(function () {
+        if (state.mode === 'campaign') startCampaignLevel(state.levelIndex);
+        else if (state.mode === 'daily') startDailyLevel(state.dailyDate);
+        else startRandomLevel(state.seed);
+      });
     });
-    $('win-menu').addEventListener('click', goCampaign);
+    $('win-menu').addEventListener('click', function () {
+      var afterAd = window.Ads ? window.Ads.maybeShowInterstitial() : Promise.resolve();
+      afterAd.then(goCampaign);
+    });
     $('fail-retry').addEventListener('click', function () {
       $('fail-overlay').hidden = true;
       if (state.mode === 'campaign') startCampaignLevel(state.levelIndex);
-      else if (state.mode === 'daily') startDailyLevel();
+      else if (state.mode === 'daily') startDailyLevel(state.dailyDate);
       else startRandomLevel(state.seed);
     });
     $('fail-menu').addEventListener('click', goCampaign);
@@ -730,15 +856,130 @@
       updateSettingsUI();
       savePrefs();
     });
-    $('reset-progress').addEventListener('click', function () {
-      if (!confirm('Reset every level? All progress will be lost.')) return;
+    $('settings-privacy').addEventListener('click', function () {
+      $('settings-modal').hidden = true;
+      openPrivacyDataModal();
+    });
+    $('privacy-analytics').addEventListener('click', function () {
+      setToggleBtn(this, this.getAttribute('aria-pressed') !== 'true');
+    });
+    $('privacy-continue').addEventListener('click', function () {
+      state.prefs.analytics = $('privacy-analytics').getAttribute('aria-pressed') === 'true';
+      savePrefs();
+      applyConsent();
+      $('privacy').hidden = true;
+      if (state.prefs.analytics) track('analytics_consent_granted');
+      primeConsent();
+    });
+    $('privacy-data-analytics').addEventListener('click', function () {
+      state.prefs.analytics = this.getAttribute('aria-pressed') !== 'true';
+      setToggleBtn(this, state.prefs.analytics);
+      savePrefs();
+      applyConsent();
+      if (state.prefs.analytics) track('analytics_consent_granted');
+    });
+    $('privacy-data-ads').addEventListener('click', function () {
+      setAdsPersonalized(this.getAttribute('aria-pressed') !== 'true');
+    });
+    $('privacy-data-close').addEventListener('click', function () {
+      $('privacy-data').hidden = true;
+    });
+    /* Erasing progress asks twice and then asks for six seconds of intent.
+       It used to be a home-screen button behind a confirm(), which sat one
+       slip away from wiping a thousand levels. */
+    function openReset() {
+      $('settings-modal').hidden = true;
+      $('reset-ask').hidden = false;
+      $('reset-hold-step').hidden = true;
+      $('reset-modal').hidden = false;
+    }
+
+    function closeReset(back) {
+      releaseHold();
+      $('reset-modal').hidden = true;
+      if (back) $('settings-modal').hidden = false;
+    }
+
+    $('settings-reset').addEventListener('click', openReset);
+    $('reset-cancel').addEventListener('click', function () { closeReset(true); });
+    $('reset-back').addEventListener('click', function () { closeReset(true); });
+    $('reset-yes').addEventListener('click', function () {
+      $('reset-ask').hidden = true;
+      $('reset-hold-step').hidden = false;
+      $('reset-hold').focus();
+    });
+
+    var HOLD_MS = 6000;
+    var holdFrom = 0, holdRaf = null;
+
+    function paintHold(fraction, label) {
+      $('reset-hold').style.setProperty('--held', fraction);
+      $('reset-hold-label').textContent = label;
+    }
+
+    function releaseHold() {
+      if (holdRaf) cancelAnimationFrame(holdRaf);
+      holdRaf = null;
+      holdFrom = 0;
+      $('reset-hold').classList.remove('is-done');
+      paintHold(0, 'Press and hold');
+    }
+
+    function tickHold() {
+      var held = Date.now() - holdFrom;
+      if (held >= HOLD_MS) {
+        holdRaf = null;
+        $('reset-hold').classList.add('is-done');
+        paintHold(1, 'Erased');
+        eraseProgress();
+        return;
+      }
+      var left = Math.ceil((HOLD_MS - held) / 1000);
+      paintHold(held / HOLD_MS, 'Keep holding\u2026 ' + left);
+      holdRaf = requestAnimationFrame(tickHold);
+    }
+
+    function startHold() {
+      if (holdRaf) return;
+      holdFrom = Date.now();
+      Sound.undo();
+      holdRaf = requestAnimationFrame(tickHold);
+    }
+
+    function eraseProgress() {
       state.progress = { completed: {} };
       state.dailyState = {};
       state.randomState = { difficulty: 1 };
       saveJSON(PROGRESS_KEY, state.progress);
       saveJSON(DAILY_KEY, state.dailyState);
       saveJSON(RANDOM_KEY, state.randomState);
+      Sound.lose();
       renderHome();
+      setTimeout(function () {
+        closeReset(false);
+        showScreen('screen-home');
+      }, 700);
+    }
+
+    var hold = $('reset-hold');
+    hold.addEventListener('pointerdown', function (e) {
+      /* Capture, so a finger sliding off the button still counts as holding. */
+      hold.setPointerCapture(e.pointerId);
+      startHold();
+    });
+    ['pointerup', 'pointercancel'].forEach(function (type) {
+      hold.addEventListener(type, function () {
+        if (!hold.classList.contains('is-done')) releaseHold();
+      });
+    });
+    hold.addEventListener('keydown', function (e) {
+      if (e.repeat) return;                   /* auto-repeat is not holding */
+      if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); startHold(); }
+    });
+    hold.addEventListener('keyup', function (e) {
+      if (e.key === ' ' || e.key === 'Enter') {
+        if (!hold.classList.contains('is-done')) releaseHold();
+      }
     });
 
     var frame = $('arena');
@@ -771,14 +1012,128 @@
     var c = $('settings-cb');
     c.textContent = state.prefs.cbAssist ? 'On' : 'Off';
     c.setAttribute('aria-pressed', state.prefs.cbAssist ? 'true' : 'false');
+    var a = $('privacy-data-analytics');
+    if (a) setToggleBtn(a, state.prefs.analytics === true);
+    var ads = $('privacy-data-ads');
+    if (ads) setToggleBtn(ads, state.prefs.personalizedAds === true);
+  }
+
+  /* Publishes the current consent state to Track (and could to Ads too if a
+     personalised-ads toggle existed here). AdMob's own UMP flow governs the
+     ads flag independently — we assume "not personalised" unless the user
+     goes through UMP. */
+  function applyConsent() {
+    window.__consentState = {
+      analytics: state.prefs.analytics === true,
+      ads: !!(window.Ads && window.Ads.adsPersonalisedGranted &&
+              window.Ads.adsPersonalisedGranted())
+    };
+    if (window.Track && window.Track.sync) window.Track.sync();
+    if (window.Ads && window.Ads.setPersonalized) {
+      window.Ads.setPersonalized(state.prefs.personalizedAds === true);
+    }
+  }
+
+  /* Turning personalised ads on has to walk the same gates the SDK does:
+     ATT first on iOS, then UMP, then Google's own privacy options form. */
+  async function setAdsPersonalized(on) {
+    state.prefs.personalizedAds = on === true;
+    savePrefs();
+    applyConsent();
+    updateSettingsUI();
+    if (!on) return;
+    var Ads = window.Ads;
+    if (!Ads || !Ads.isNative || !Ads.isNative()) return;
+    var attPromise = Ads.getPlatform() === 'ios' ? Ads.ensureAtt(true) : Promise.resolve();
+    try { await Ads.init(); } catch (e) {}
+    try { await Ads.runUmp(true); } catch (e) {}
+    try { await attPromise; } catch (e) {}
+    if (Ads.showPrivacyOptionsForm) {
+      try { await Ads.showPrivacyOptionsForm(); } catch (e) {}
+    }
+    applyConsent();
+    updateSettingsUI();
+  }
+
+  /* Runs once the player has answered our own dialog. Apple's prompt has to
+     be reachable for every iOS player whatever the toggles say — a reviewer
+     who never sees it fails the build under Guideline 2.1. */
+  async function primeConsent() {
+    var Ads = window.Ads;
+    if (!Ads || !Ads.isNative || !Ads.isNative()) return;
+    var attPromise = Ads.getPlatform() === 'ios' ? Ads.ensureAtt(true) : Promise.resolve();
+    try { await Ads.init(); } catch (e) {}
+    try { await Ads.runUmp(); } catch (e) {}
+    var attStatus = null;
+    try { attStatus = await attPromise; } catch (e) {}
+    if (attStatus === 'authorized') {
+      state.prefs.personalizedAds = true;
+      savePrefs();
+    }
+    applyConsent();
+    updateSettingsUI();
+    Ads.warm();
+  }
+
+  function setToggleBtn(btn, on) {
+    if (!btn) return;
+    btn.textContent = on ? 'On' : 'Off';
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+
+  function openPrivacyModal() {
+    setToggleBtn($('privacy-analytics'), state.prefs.analytics === true);
+    var link = $('privacy-policy');
+    if (link) {
+      link.hidden = !PRIVACY_POLICY_URL;
+      if (PRIVACY_POLICY_URL) link.href = PRIVACY_POLICY_URL;
+    }
+    $('privacy').hidden = false;
+  }
+
+  function openPrivacyDataModal() {
+    setToggleBtn($('privacy-data-analytics'), state.prefs.analytics === true);
+    setToggleBtn($('privacy-data-ads'), state.prefs.personalizedAds === true);
+    $('privacy-data').hidden = false;
+  }
+
+  /* Asked once, on the first run. Anything already answered is simply
+     applied — nothing is collected before the player has said yes. */
+  function maybeAskConsent() {
+    if (state.prefs.analytics === true || state.prefs.analytics === false) {
+      applyConsent();
+      var Ads = window.Ads;
+      if (Ads && Ads.isNative && Ads.isNative()) {
+        Ads.init().then(function () { return Ads.runUmp(); })
+          .then(function () { return Ads.ensureAtt(false); })
+          .then(function () { applyConsent(); updateSettingsUI(); Ads.warm(); })
+          .catch(function () {});
+      }
+      return;
+    }
+    /* A boot splash would sit over the dialog, so wait for it to clear. */
+    (function waitForBoot(tries) {
+      if (!document.getElementById('boot') || tries > 40) { openPrivacyModal(); return; }
+      setTimeout(function () { waitForBoot(tries + 1); }, 150);
+    })(0);
+  }
+
+  /* Every call site is one line and none of them can fail: Track.event is
+     itself a no-op without consent. */
+  function track(name, params) {
+    if (window.Track) window.Track.event(name, params);
   }
 
   function boot() {
     loadPrefs();
     loadAll();
+    applyConsent();
     wire();
     renderHome();
     showScreen('screen-home');
+    /* Every ad gate now hangs off this: the player answers our dialog first,
+       then UMP, ATT and the SDK warm-up follow in order. */
+    maybeAskConsent();
   }
 
   if (document.readyState === 'loading') {

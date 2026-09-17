@@ -10,6 +10,8 @@
     "build:standalone": "node build.js --standalone"
   },
   "dependencies": {
+    "@capacitor-community/admob": "^8.1.0",
+    "@capacitor-firebase/analytics": "^8.5.1",
     "@capacitor/android": "^8.5.0",
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",

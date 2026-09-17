@@ -119,13 +119,13 @@ const TEACH = [
   },
   {
     name: 'Standing Up',
-    brief: 'Tap the arena to rotate. A rotation wider than the arena is refused.',
-    width: 3, height: 4, obstacles: [],
+    brief: 'Tap the arena to rotate. The square goes in the middle; the other two need turning before they fit.',
+    width: 4, height: 3, obstacles: [],
     fallSpeed: 0.32,
     pieces: [
-      { shape: 'tet_i', colour: 'red',  rot: 1, col: 0, top: 8 },
-      { shape: 'tet_i', colour: 'blue', rot: 1, col: 1, top: 8 },
-      { shape: 'tet_i', colour: 'teal', rot: 1, col: 2, top: 8 }
+      { shape: 'tet_o', colour: 'red',  rot: 0, col: 1, top: 9 },
+      { shape: 'tet_j', colour: 'blue', rot: 2, col: 0, top: 8 },
+      { shape: 'tet_l', colour: 'teal', rot: 2, col: 2, top: 8 }
     ]
   },
   {
@@ -144,14 +144,14 @@ const TEACH = [
   },
   {
     name: 'Order Matters',
-    brief: 'A bar along the bottom, a square on each side, a bar across the top. Every cell.',
+    brief: 'Two the right way up along the bottom, two turned over on top. Every cell.',
     width: 4, height: 4, obstacles: [],
     fallSpeed: 0.32,
     pieces: [
-      { shape: 'tet_i', colour: 'red',    rot: 0, col: 0, top: 11 },
-      { shape: 'tet_o', colour: 'blue',   rot: 0, col: 0, top: 9 },
-      { shape: 'tet_o', colour: 'teal',   rot: 0, col: 2, top: 9 },
-      { shape: 'tet_i', colour: 'purple', rot: 0, col: 0, top: 8 }
+      { shape: 'tet_l', colour: 'red',    rot: 0, col: 0, top: 9 },
+      { shape: 'tet_j', colour: 'blue',   rot: 0, col: 2, top: 9 },
+      { shape: 'tet_l', colour: 'teal',   rot: 2, col: 0, top: 8 },
+      { shape: 'tet_j', colour: 'purple', rot: 2, col: 2, top: 8 }
     ]
   }
 ];

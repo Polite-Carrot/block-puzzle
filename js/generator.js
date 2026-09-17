@@ -252,21 +252,26 @@
   function campaignParams(level) {
     var idx = Math.max(0, level - 6);
     var t = idx / (CAMPAIGN_LEVELS - 6);   /* 0 at level 6, 1 at level 1000 */
-    var wBase = 4 + Math.floor(t * 4);     /* 4 → 8 */
-    var hBase = 4 + Math.floor(t * 8);     /* 4 → 12 */
+    /* Two ramps rather than one. A single curve stretched over a thousand
+       levels leaves the opening fifty barely distinguishable from each other;
+       `early` does most of its growing in the first sixty levels, and `late`
+       takes over for the long climb after that. */
+    var early = Math.min(1, Math.sqrt(idx / 60));
+    var late  = Math.max(0, (idx - 60) / (CAMPAIGN_LEVELS - 66));
+    var wBase = 4 + Math.round(early * 3) + Math.round(late * 1);   /* 4 → 7 → 8 */
+    var hBase = 4 + Math.round(early * 5) + Math.round(late * 3);   /* 4 → 9 → 12 */
     var wOff  = [0, 1, 0, -1, 1, 2][level % 6];
     var hOff  = [1, 0, 2, 1, -1, 1, 2][level % 7];
     var w = Math.max(4, Math.min(8, wBase + wOff));
     var h = Math.max(4, Math.min(12, hBase + hOff));
-    /* Terrain: none for the first thirty, then rising to a jagged five-row
-       maximum by level 500 and holding there. */
-    var terrainMax = Math.min(5, Math.floor(h / 2), Math.max(0, Math.floor(idx / 80)));
-    var pool = idx < 30   ? POOL_TINY :
-               idx < 100  ? POOL_SMALL :
-               idx < 300  ? POOL_MID :
-               idx < 600  ? POOL_LARGE : POOL_HARDEST;
-    var palette   = Math.min(9, 3 + Math.floor(t * 7));
-    var fallSpeed = 0.35 + t * 0.55;       /* 0.35 → 0.9 */
+    /* Terrain from the twenties, jagged by the eighties. */
+    var terrainMax = Math.min(5, Math.floor(h / 2), Math.floor(idx / 16));
+    /* Five-cell pieces arrive at level 10, once the taught levels are done. */
+    var pool = idx < 4   ? POOL_TINY :
+               idx < 24  ? POOL_MID :
+               idx < 150 ? POOL_LARGE : POOL_HARDEST;
+    var palette   = Math.min(9, 3 + Math.round(early * 3) + Math.round(late * 3));
+    var fallSpeed = 0.35 + early * 0.25 + late * 0.3;   /* 0.35 → 0.6 → 0.9 */
     return { w: w, h: h, terrainMax: terrainMax, pool: pool, palette: palette, fallSpeed: fallSpeed };
   }
 

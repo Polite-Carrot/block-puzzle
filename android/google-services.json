@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "753178776012",
+    "project_id": "color-block-fall-1c5e2",
+    "storage_bucket": "color-block-fall-1c5e2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:753178776012:android:3a603979f94d2fbbcd4d69",
+        "android_client_info": {
+          "package_name": "com.politecarrot.blockpuzzle"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDMEBoQTVX86BLHF9koHBCnw1hJH_NMe44"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

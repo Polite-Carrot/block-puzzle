@@ -60,7 +60,6 @@
     <footer class="menu-foot">
       <button id="how-to" class="btn btn--ghost">How to play</button>
       <button id="settings" class="btn btn--ghost">Settings</button>
-      <button id="reset-progress" class="btn btn--ghost btn--quiet">Reset progress</button>
     </footer>
   </section>
 
@@ -94,13 +93,16 @@
     </header>
 
     <div class="card card--single">
-      <div class="daily__date">
-        <span class="daily__day" id="daily-day">–</span>
-        <span class="daily__month" id="daily-month">–</span>
+      <div class="cal__head">
+        <button id="cal-prev" class="btn btn--ghost" type="button" aria-label="Previous month">&lsaquo;</button>
+        <h3 id="cal-month">&nbsp;</h3>
+        <button id="cal-next" class="btn btn--ghost" type="button" aria-label="Next month">&rsaquo;</button>
       </div>
-      <p id="daily-status" class="card__body">Solve today’s board. Every day is a new one, the same for everyone.</p>
-      <button id="play-daily" class="btn btn--primary btn--wide">Play today’s puzzle</button>
-      <p id="daily-record" class="card__note"></p>
+      <ol class="cal__names" aria-hidden="true">
+        <li>M</li><li>T</li><li>W</li><li>T</li><li>F</li><li>S</li><li>S</li>
+      </ol>
+      <ol id="cal-grid" class="cal"></ol>
+      <p id="daily-status" class="cal__legend"></p>
     </div>
   </section>
 
@@ -175,7 +177,9 @@
       <div class="result__flare" aria-hidden="true">
         <span></span><span></span><span></span><span></span>
       </div>
-      <div class="result__badge result__badge--win" aria-hidden="true">✓</div>
+      <div class="result__badge result__badge--win" aria-hidden="true">
+        <svg class="result__mark" viewBox="0 0 24 24"><path d="M5 12.4l4.8 4.8L19 7"/></svg>
+      </div>
       <h2 id="win-title" class="result__title result__title--win">Cleared!</h2>
       <p class="modal__line" id="win-line">Every piece under the line.</p>
       <div class="modal__actions">
@@ -192,7 +196,9 @@
       <div class="result__flare result__flare--fail" aria-hidden="true">
         <span></span><span></span><span></span><span></span>
       </div>
-      <div class="result__badge result__badge--fail" aria-hidden="true">✕</div>
+      <div class="result__badge result__badge--fail" aria-hidden="true">
+        <svg class="result__mark" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg>
+      </div>
       <h2 id="fail-title" class="result__title result__title--fail">Level failed!</h2>
       <p class="modal__line" id="fail-line">A piece went above the line.</p>
       <div class="modal__actions">
@@ -218,6 +224,57 @@
     </div>
   </div>
 
+  <!-- ─────────────── privacy ─────────────── -->
+  <div id="privacy" class="overlay" hidden>
+    <div class="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="privacy-title">
+      <h2 id="privacy-title">Before you start</h2>
+      <p class="modal__line">
+        One thing you can switch on if you want to. It stays off unless you
+        turn it on, and can be changed at any time in Privacy &amp; Data.
+      </p>
+
+      <div class="settings-list">
+        <div class="settings-row settings-row--stack">
+          <div>
+            <b>Send usage data</b>
+            <p class="settings-row__note">Which levels people reach and where they get stuck, so we can fix the ones that are too hard.</p>
+          </div>
+          <button id="privacy-analytics" class="btn" type="button" aria-label="Send usage data" aria-pressed="false">Off</button>
+        </div>
+      </div>
+
+      <div class="modal__actions modal__actions--consent">
+        <a id="privacy-policy" class="policy-link" href="#" target="_blank" rel="noopener">Privacy policy</a>
+        <button id="privacy-continue" class="btn btn--primary">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="privacy-data" class="overlay" hidden>
+    <div class="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="privacy-data-title">
+      <h2 id="privacy-data-title">Privacy &amp; Data</h2>
+      <div class="settings-list">
+        <div class="settings-row settings-row--stack">
+          <div>
+            <b>Send usage data</b>
+            <p class="settings-row__note">Which levels people reach and where they get stuck, so we can fix the ones that are too hard.</p>
+          </div>
+          <button id="privacy-data-analytics" class="btn" type="button" aria-label="Send usage data" aria-pressed="false">Off</button>
+        </div>
+        <div class="settings-row settings-row--stack">
+          <div>
+            <b>Personalised ads</b>
+            <p class="settings-row__note">Ads matched to your interests. Left off, ads still appear but are generic.</p>
+          </div>
+          <button id="privacy-data-ads" class="btn" type="button" aria-label="Personalised ads" aria-pressed="false">Off</button>
+        </div>
+      </div>
+      <div class="modal__actions">
+        <button id="privacy-data-close" class="btn btn--primary">Done</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ─────────────── settings ─────────────── -->
   <div id="settings-modal" class="overlay" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
@@ -231,9 +288,48 @@
           <span>Colour Blind Assist</span>
           <button id="settings-cb" class="btn" type="button" aria-pressed="false">Off</button>
         </div>
+        <div class="settings-row">
+          <span>Privacy &amp; Data</span>
+          <button id="settings-privacy" class="btn" type="button">Open&hellip;</button>
+        </div>
+        <div class="settings-row settings-row--danger">
+          <span>Reset progress</span>
+          <button id="settings-reset" class="btn btn--quiet" type="button">Erase&hellip;</button>
+        </div>
       </div>
       <div class="modal__actions">
         <button id="settings-close" class="btn btn--primary">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────── reset progress ─────────────── -->
+  <div id="reset-modal" class="overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="reset-title">
+      <h2 id="reset-title">Reset progress?</h2>
+
+      <!-- first: say plainly what goes -->
+      <div id="reset-ask">
+        <p class="modal__line">
+          Every cleared level, every daily solved and every random puzzle
+          setting. This cannot be undone.
+        </p>
+        <div class="modal__actions">
+          <button id="reset-cancel" class="btn btn--primary" type="button">Keep it</button>
+          <button id="reset-yes" class="btn btn--quiet" type="button">Yes, erase it</button>
+        </div>
+      </div>
+
+      <!-- then: make them mean it -->
+      <div id="reset-hold-step" hidden>
+        <p class="modal__line">Hold the button down until the bar fills.</p>
+        <button id="reset-hold" class="hold" type="button">
+          <i class="hold__fill" aria-hidden="true"></i>
+          <span class="hold__label" id="reset-hold-label">Press and hold</span>
+        </button>
+        <div class="modal__actions">
+          <button id="reset-back" class="btn btn--quiet" type="button">Cancel</button>
+        </div>
       </div>
     </div>
   </div>
@@ -248,7 +344,10 @@
 <script src="js/engine.js"></script>
 <script src="js/generator.js"></script>
 <script src="js/levels.js"></script>
+<script src="js/daily.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/ads.js"></script>
+<script src="js/track.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
