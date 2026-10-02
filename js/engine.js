@@ -23,6 +23,10 @@
      is more than twenty seconds, and even the fastest board gives ten. */
   var SKY = 8;
 
+  /* Multiplies every level's fallSpeed. The authored curve was gentle enough
+     that boards dragged, and one dial is easier to retune than 1000 levels. */
+  var FALL_SCALE = 1.4;
+
   function Game(level) {
     this.level = level;
     this.width = level.width;
@@ -30,8 +34,9 @@
     this.sky = SKY;
     /* Speed comes from the level so the first few boards run slower than the
        hundredth. Falls back to a gentle default for hand-crafted levels
-       that forgot to set one. */
-    this.fallSpeed = level.fallSpeed || 0.6;
+       that forgot to set one. Scaled here rather than in the level data so
+       the whole curve shifts at once without regenerating levels.js. */
+    this.fallSpeed = (level.fallSpeed || 0.6) * FALL_SCALE;
     this.restart();
   }
 

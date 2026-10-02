@@ -11,6 +11,13 @@
 </head>
 <body>
 
+<div id="boot" aria-hidden="true">
+  <div class="boot-lockup">
+    <img class="boot-mark" src="assets/polite-carrot-logo.svg" alt="">
+    <img class="boot-name" src="assets/polite-carrot-name.svg" alt="">
+  </div>
+</div>
+
 <div class="app">
 
   <!-- ─────────────── home ─────────────── -->
@@ -338,6 +345,25 @@
 
 </div>
 
+<script>
+(function () {
+  var boot = document.getElementById('boot');
+  if (!boot) return;
+
+  function dismissBoot() {
+    if (boot.classList.contains('done')) return;
+    boot.classList.add('done');
+    boot.addEventListener('transitionend', function () { boot.remove(); }, { once: true });
+    setTimeout(function () { if (boot.isConnected) boot.remove(); }, 700);
+  }
+
+  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.addEventListener('load', function () {
+    setTimeout(dismissBoot, reduced ? 100 : 1350);
+  }, { once: true });
+  setTimeout(dismissBoot, 4000);
+})();
+</script>
 <script src="js/store.js"></script>
 <script src="js/palette.js"></script>
 <script src="js/shapes.js"></script>
@@ -346,6 +372,7 @@
 <script src="js/levels.js"></script>
 <script src="js/daily.js"></script>
 <script src="js/ui.js"></script>
+<script src="vendor/unity-ads.js"></script>
 <script src="js/ads.js"></script>
 <script src="js/track.js"></script>
 <script src="js/app.js"></script>

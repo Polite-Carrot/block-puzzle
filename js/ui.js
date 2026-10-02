@@ -47,6 +47,7 @@
     this.ghostInner = el('div', 'arena__layer', this.ghost);
     this.piece = el('div', 'arena__piece', this.frame);
     this.pieceInner = el('div', 'arena__layer', this.piece);
+    this.wind = el('div', 'arena__wind', this.pieceInner);
     this.width = 0;
     this.height = 0;
     this.cellPx = 0;
@@ -58,6 +59,9 @@
     this.height = game.height;
     this.sky = game.sky;
     this.cellPx = cellPx;
+    /* Two levels can share a size but not a floor, so callers check this
+       before deciding a relayout would be redundant. */
+    this.level = game.level;
     var w = game.width * cellPx;
     var h = game.height * cellPx;
     var sky = game.sky * cellPx;
@@ -131,9 +135,17 @@
     mark.textContent = P.mark(colour);
   };
 
+  ArenaView.prototype._clearBlocks = function (container) {
+    var old = container.querySelectorAll('.block');
+    for (var i = 0; i < old.length; i++) container.removeChild(old[i]);
+  };
+
   ArenaView.prototype._paintPiece = function (container, shape, rot, colour, opts) {
     opts = opts || {};
-    container.innerHTML = '';
+    /* Only the blocks are replaced. This runs every frame, and clearing the
+       whole layer would take the wind with it — restarting its animation on
+       each repaint, which leaves the streaks frozen on their first frame. */
+    this._clearBlocks(container);
     var geom = global.Shapes.cellsOf(shape, rot);
     container.style.setProperty('--pw', geom.cols);
     container.style.setProperty('--ph', geom.rows);
@@ -157,6 +169,30 @@
     inner.style.transform = 'translateY(' + (row * this.cellPx) + 'px)';
   };
 
+  /* One streak per column the piece occupies, each sitting on that column's
+     highest cell. Built from the shape rather than placed at fixed points,
+     so every piece gets wind and none of it lands inside a block. */
+  var WIND_LENGTHS = [0.8, 1.0, 0.7, 0.95, 0.85];
+
+  ArenaView.prototype._paintWind = function (geom, key) {
+    if (this._windKey === key) return;
+    this._windKey = key;
+    this.wind.innerHTML = '';
+    var tops = [];
+    for (var j = 0; j < geom.cols; j++) tops[j] = -1;
+    for (var i = 0; i < geom.cells.length; i++) {
+      var cell = geom.cells[i];
+      if (tops[cell.c] < 0 || cell.r < tops[cell.c]) tops[cell.c] = cell.r;
+    }
+    for (var c = 0; c < geom.cols; c++) {
+      if (tops[c] < 0) continue;
+      var streak = el('i', null, this.wind);
+      streak.style.setProperty('--c', c);
+      streak.style.setProperty('--y', tops[c]);
+      streak.style.setProperty('--len', WIND_LENGTHS[c % WIND_LENGTHS.length]);
+    }
+  };
+
   /* Paint the current piece at whatever integer + fractional row the engine
      says it has descended to, plus a ghost at the landing row. Called every
      frame while the piece falls, so the piece appears to move continuously
@@ -169,11 +205,15 @@
     if (!pc || game.lost || game.won) {
       this.piece.style.opacity = '0';
       this.ghost.style.opacity = '0';
-      this.pieceInner.innerHTML = '';
-      this.ghostInner.innerHTML = '';
+      this._clearBlocks(this.pieceInner);
+      this._clearBlocks(this.ghostInner);
+      this.wind.innerHTML = '';
+      this._windKey = null;
       return;
     }
     this._paintPiece(this.pieceInner, pc.shape, game.currentRot, pc.colour);
+    this._paintWind(global.Shapes.cellsOf(pc.shape, game.currentRot),
+      pc.shape + ':' + game.currentRot);
     this._paintPiece(this.ghostInner, pc.shape, game.currentRot, pc.colour, { ghost: true });
     var landing = game.landingRow(game.currentRot, game.currentCol);
     this._placeLayer(this.piece, this.pieceInner,
@@ -185,6 +225,11 @@
       this._placeLayer(this.ghost, this.ghostInner, landing, game.currentCol);
       this.ghost.style.opacity = landing === game.currentRow ? '0' : '0.28';
     }
+  };
+
+  /* Speed lines while the player is driving the piece down. */
+  ArenaView.prototype.setDropping = function (on) {
+    this.frame.classList.toggle('is-dropping', !!on);
   };
 
   ArenaView.prototype.hideCurrent = function () {

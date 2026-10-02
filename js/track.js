@@ -37,6 +37,16 @@
     return _fb;
   }
 
+  /* Last status pushed per consent type. ATT resolving after boot flips only
+     the ad grants, so without this the analytics grant is re-sent unchanged. */
+  var applied = {};
+
+  async function push(fb, type, status) {
+    if (applied[type] === status) return;
+    await fb.setConsent({ type: type, status: status });
+    applied[type] = status;
+  }
+
   /* Turn collection on: after consent, or after somebody flips the setting
      back on. Safe to call repeatedly.
 
@@ -53,11 +63,11 @@
       await fb.setEnabled({ enabled: true });
       if (fb.setConsent) {
         /* @capacitor-firebase/analytics 8.x takes { type, status } per call,
-           not an array — four separate awaits to grant/deny each type. */
-        await fb.setConsent({ type: 'ANALYTICS_STORAGE',  status: 'GRANTED' });
-        await fb.setConsent({ type: 'AD_STORAGE',         status: adStatus });
-        await fb.setConsent({ type: 'AD_USER_DATA',       status: adStatus });
-        await fb.setConsent({ type: 'AD_PERSONALIZATION', status: adStatus });
+           not an array — one await per type. */
+        await push(fb, 'ANALYTICS_STORAGE',  'GRANTED');
+        await push(fb, 'AD_STORAGE',         adStatus);
+        await push(fb, 'AD_USER_DATA',       adStatus);
+        await push(fb, 'AD_PERSONALIZATION', adStatus);
       }
     } catch (e) {
       console.warn('Track: Firebase enable failed', e && e.message);
@@ -71,19 +81,30 @@
     try {
       await fb.setEnabled({ enabled: false });
       if (fb.setConsent) {
-        await fb.setConsent({ type: 'ANALYTICS_STORAGE',  status: 'DENIED' });
-        await fb.setConsent({ type: 'AD_STORAGE',         status: 'DENIED' });
-        await fb.setConsent({ type: 'AD_USER_DATA',       status: 'DENIED' });
-        await fb.setConsent({ type: 'AD_PERSONALIZATION', status: 'DENIED' });
+        await push(fb, 'ANALYTICS_STORAGE',  'DENIED');
+        await push(fb, 'AD_STORAGE',         'DENIED');
+        await push(fb, 'AD_USER_DATA',       'DENIED');
+        await push(fb, 'AD_PERSONALIZATION', 'DENIED');
       }
     } catch (e) { /* nothing to do */ }
     enabled = false;
   }
 
   /* Reads the consent state that app.js publishes on window.__consentState.
-     Called from the app whenever a toggle changes. */
-  function sync() {
+     Called from the app whenever a toggle changes.
+
+     Boot calls this three times over (startup, consent check, then again once
+     ATT and the ads SDK have settled), and each pass costs four native
+     setConsent round-trips. Remembering the last state applied makes the
+     repeats free without the callers needing to know about each other. */
+  var lastSynced = null;
+  function sync(force) {
     var choice = global.__consentState || {};
+    var key = (choice.analytics === true) + '/' + (choice.ads === true);
+    if (!force && key === lastSynced) return;
+    /* Only remember a state that actually reached the plugin, so a sync that
+       ran before the plugin registered does not suppress the real one. */
+    lastSynced = configured() ? key : null;
     if (choice.analytics === true) load(choice.ads === true);
     else unload();
   }
@@ -103,6 +124,9 @@
           ? params[k].slice(0, 100) : params[k];
       }
     }
+    /* The Capacitor bridge log only prints the callback id, so set
+       window.__trackDebug = true in the Web Inspector to see what is sent. */
+    if (global.__trackDebug) console.log('Track event:', name, JSON.stringify(safe));
     try { fb.logEvent({ name: name, params: safe }).catch(function () {}); }
     catch (e) { /* analytics must never break play */ }
   }

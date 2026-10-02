@@ -11,6 +11,8 @@
 const fs = require('fs');
 const path = require('path');
 
+require('./sync-dependencies')();
+
 const root = __dirname;
 const out = path.join(root, 'www');
 
@@ -21,7 +23,14 @@ const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const scripts = [...html.matchAll(/<script\s+src="([^"]+)"><\/script>/gi)].map(m => m[1]);
 const styles  = [...html.matchAll(/<link[^>]+href="([^"]+\.css)"/gi)].map(m => m[1]);
 
-const files = new Set(['index.html', ...scripts, ...styles]);
+const files = new Set([
+  'index.html',
+  ...scripts,
+  ...styles,
+  /* Referenced from markup rather than a tag the regexes above can see. */
+  'assets/polite-carrot-logo.svg',
+  'assets/polite-carrot-name.svg'
+]);
 
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });

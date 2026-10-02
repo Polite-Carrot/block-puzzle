@@ -10,11 +10,11 @@
     "build:standalone": "node build.js --standalone"
   },
   "dependencies": {
-    "@capacitor-community/admob": "^8.1.0",
     "@capacitor-firebase/analytics": "^8.5.1",
     "@capacitor/android": "^8.5.0",
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",
-    "@capacitor/ios": "^8.5.0"
+    "@capacitor/ios": "^8.5.0",
+    "@politecarrot/capacitor-unity-ads": "github:Polite-Carrot/polite-carrot-unity-ads#96f31aa21ee8cd5e966797b37c438540c092f444"
   }
 }

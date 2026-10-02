@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Polite Carrot</title>
+  <desc id="desc">A cute orange carrot with a subtle closed smile on a black background.</desc>
+  <rect width="1024" height="1024" rx="192" fill="#000"/>
+  <g transform="rotate(8 512 512)">
+    <path d="M476 321 C417 252 417 170 467 119 C505 177 518 247 512 320Z" fill="#65B84F"/>
+    <path d="M527 320 C532 229 577 157 648 138 C644 220 604 282 559 329Z" fill="#4B9D43"/>
+    <path d="M458 337 C374 310 322 250 325 180 C396 207 449 260 484 326Z" fill="#7BCB59"/>
+    <path d="M368 323 C418 283 565 279 637 332 C684 367 669 447 637 533 C602 626 547 735 491 841 C478 865 445 859 438 833 C406 716 371 594 345 487 C323 397 322 359 368 323Z" fill="#FF6B1A"/>
+    <ellipse cx="435" cy="448" rx="13" ry="17" fill="#111"/>
+    <ellipse cx="548" cy="448" rx="13" ry="17" fill="#111"/>
+    <circle cx="430" cy="442" r="4" fill="#FFF"/>
+    <circle cx="543" cy="442" r="4" fill="#FFF"/>
+    <path d="M458 491 C478 496 507 496 528 489" fill="none" stroke="#421A12" stroke-width="9" stroke-linecap="round"/>
+    <path d="M382 564 L423 576 M409 655 L448 666 M548 570 L590 553 M509 741 L539 727" fill="none" stroke="#D9470B" stroke-width="13" stroke-linecap="round"/>
+  </g>
+</svg>

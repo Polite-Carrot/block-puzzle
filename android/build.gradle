@@ -3,6 +3,10 @@
 buildscript {
     
     repositories {
+        // Aliyun mirror first — dl.google.com fails the TLS handshake on this
+        // network. Aliyun serves the same Google Maven bytes from another CDN.
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/public' }
         google()
         mavenCentral()
     }
@@ -19,8 +23,18 @@ apply from: "variables.gradle"
 
 allprojects {
     repositories {
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/public' }
         google()
         mavenCentral()
+    }
+}
+
+subprojects {
+    afterEvaluate { proj ->
+        if (proj.hasProperty('android')) {
+            proj.android.buildToolsVersion = rootProject.ext.buildToolsVersion
+        }
     }
 }
 

@@ -211,7 +211,13 @@
       btn.setAttribute('aria-label', D.title(date) + ', ' +
         (done ? 'solved' : open ? 'not played yet' : 'not open yet'));
       btn.title = D.title(date);
-      if (open) btn.addEventListener('click', function () { startDailyLevel(date); });
+      if (open) btn.addEventListener('click', function () {
+        track('daily_date_selected', {
+          date: window.Daily.seedFor(date),
+          replay: done ? 'yes' : 'no'
+        });
+        startDailyLevel(date);
+      });
     });
 
     var streak = D.streak(state.dailyState);
@@ -278,6 +284,7 @@
     saveJSON(RANDOM_KEY, state.randomState);
     var level = Generator.buildRandomLevel(state.difficulty, seed);
     if (!level) { alert('Could not deal a puzzle for that seed. Try another.'); return; }
+    track('random_deal', { difficulty: state.difficulty, seed: String(seed) });
     startLevel(level);
   }
 
@@ -287,11 +294,9 @@
     $('overlay').hidden = true;
     $('fail-overlay').hidden = true;
     state.game = new Engine.Game(level);
-    track('level_start', {
-      mode: state.mode,
-      level: state.mode === 'campaign' ? state.levelIndex : undefined,
-      difficulty: state.mode === 'random' ? state.difficulty : undefined
-    });
+    state.levelStartedAt = Date.now();
+    state.levelRestarts = 0;
+    track('level_start', levelParams());
     var title = state.mode === 'campaign'
       ? 'Level ' + state.levelIndex
       : (state.mode === 'daily' ? 'Daily Puzzle' : 'Random Puzzle');
@@ -356,7 +361,8 @@
       if (tighter > cell) cell = tighter;
       else setTight(false);
     }
-    if (cell === arena.cellPx && g.width === arena.width &&
+    if (cell === arena.cellPx && g.level === arena.level &&
+        g.width === arena.width &&
         g.height === arena.height && g.sky === arena.sky) return false;
     arena.layout(g, cell);
     return true;
@@ -440,6 +446,7 @@
     }
     var maxSubrow = landing - game.currentRow;
     if (game.subrow > maxSubrow) game.subrow = maxSubrow;
+    arena.setDropping(state.softDrop);
     arena.showCurrent(game);
     state.rafHandle = requestAnimationFrame(tickFall);
   }
@@ -490,7 +497,7 @@
     var game = state.game;
     if (!game || !game.canUndo() || game.won) return;
     game.undo();
-    track('undo');
+    track('undo', levelParams({ pieces_placed: game.currentIdx }));
     Sound.undo();
     $('fail-overlay').hidden = true;
     redraw();
@@ -502,8 +509,12 @@
     if (!game) return;
     state.softDrop = false;
     $('fail-overlay').hidden = true;
+    track('level_restart', levelParams({
+      pieces_placed: game.currentIdx,
+      seconds: levelSeconds()
+    }));
+    state.levelRestarts = (state.levelRestarts || 0) + 1;
     game.restart();
-    track('level_restart', { mode: state.mode });
     redraw();
     state.lastTime = performance.now();
     startFallLoop();
@@ -535,6 +546,13 @@
   var press = null;
   var TAP_MOVE_TOLERANCE = 6;
   var TAP_TIME_MS = 300;
+
+  /* Buttons keep their own taps; everything else on the screen drives the
+     piece. */
+  function fromControl(ev) {
+    var t = ev.target;
+    return !!(t && t.closest && t.closest('button, a, input, select, textarea'));
+  }
   /* A drag commits to one axis and stays there, so the wobble in a downward
      swipe cannot walk the piece across columns. */
   var AXIS_LOCK_PX = 10;
@@ -545,8 +563,9 @@
   function onPointerDown(ev) {
     if (!state.game || state.game.won || state.game.lost) return;
     if (document.querySelector('.overlay:not([hidden])')) return;
+    if (fromControl(ev)) return;
     ev.preventDefault();
-    arena.frame.setPointerCapture(ev.pointerId);
+    ev.currentTarget.setPointerCapture(ev.pointerId);
     press = {
       startX: ev.clientX,
       startY: ev.clientY,
@@ -651,14 +670,15 @@
   function onWin() {
     stopFallLoop();
     Sound.win();
-    track('level_complete', {
-      mode: state.mode,
-      level: state.mode === 'campaign' ? state.levelIndex : undefined,
-      difficulty: state.mode === 'random' ? state.difficulty : undefined
-    });
+    track('level_complete', levelParams({
+      undos: state.game.undosUsed,
+      restarts: state.levelRestarts,
+      seconds: levelSeconds()
+    }));
     if (state.mode === 'campaign') {
       state.progress.completed[state.levelIndex] = true;
       saveJSON(PROGRESS_KEY, state.progress);
+      if (state.levelIndex === LEVELS.length) track('campaign_complete');
     } else if (state.mode === 'daily') {
       state.dailyState[state.seed] = 'won';
       saveJSON(DAILY_KEY, state.dailyState);
@@ -697,11 +717,12 @@
 
   function onLost() {
     stopFallLoop();
-    track('level_fail', {
-      mode: state.mode,
-      level: state.mode === 'campaign' ? state.levelIndex : undefined,
-      difficulty: state.mode === 'random' ? state.difficulty : undefined
-    });
+    track('level_fail', levelParams({
+      pieces_placed: state.game.currentIdx,
+      undos: state.game.undosUsed,
+      restarts: state.levelRestarts,
+      seconds: levelSeconds()
+    }));
     setTimeout(function () {
       $('fail-line').textContent = pickLine(FAIL_LINES);
       var overlay = $('fail-overlay');
@@ -715,6 +736,7 @@
     $('overlay').hidden = true;
     $('fail-overlay').hidden = true;
     stopFallLoop();
+    noteQuit();
     state.game = null;
     renderHome();
     showScreen('screen-home');
@@ -724,6 +746,7 @@
     $('overlay').hidden = true;
     $('fail-overlay').hidden = true;
     stopFallLoop();
+    noteQuit();
     state.game = null;
     if (state.mode === 'campaign') {
       /* Jump to the page containing the level we just came from so the same
@@ -812,6 +835,10 @@
       saveJSON(RANDOM_KEY, state.randomState);
       renderRandom();
     });
+    /* Tracked on change, not input, so one drag is one event. */
+    slider.addEventListener('change', function () {
+      track('difficulty_changed', { difficulty: state.difficulty });
+    });
 
     $('back').addEventListener('click', goCampaign);
     $('undo').addEventListener('click', undo);
@@ -819,6 +846,7 @@
     $('win-next').addEventListener('click', goNext);
     $('win-retry').addEventListener('click', function () {
       $('overlay').hidden = true;
+      track('level_retry', levelParams({ after: 'win' }));
       var afterAd = window.Ads ? window.Ads.maybeShowInterstitial() : Promise.resolve();
       afterAd.then(function () {
         if (state.mode === 'campaign') startCampaignLevel(state.levelIndex);
@@ -832,13 +860,17 @@
     });
     $('fail-retry').addEventListener('click', function () {
       $('fail-overlay').hidden = true;
+      track('level_retry', levelParams({ after: 'fail' }));
       if (state.mode === 'campaign') startCampaignLevel(state.levelIndex);
       else if (state.mode === 'daily') startDailyLevel(state.dailyDate);
       else startRandomLevel(state.seed);
     });
     $('fail-menu').addEventListener('click', goCampaign);
 
-    $('how-to').addEventListener('click', function () { $('howto').hidden = false; });
+    $('how-to').addEventListener('click', function () {
+      track('how_to_opened');
+      $('howto').hidden = false;
+    });
     $('howto-close').addEventListener('click', function () { $('howto').hidden = true; });
     $('settings').addEventListener('click', openSettings);
     $('game-settings').addEventListener('click', openSettings);
@@ -847,12 +879,14 @@
       state.prefs.sound = !state.prefs.sound;
       Sound.on = state.prefs.sound;
       if (!Sound.on) Sound.hush();
+      track('setting_changed', { setting: 'sound', value: state.prefs.sound ? 'on' : 'off' });
       updateSettingsUI();
       savePrefs();
     });
     $('settings-cb').addEventListener('click', function () {
       state.prefs.cbAssist = !state.prefs.cbAssist;
       document.body.classList.toggle('cb-assist', state.prefs.cbAssist);
+      track('setting_changed', { setting: 'cb_assist', value: state.prefs.cbAssist ? 'on' : 'off' });
       updateSettingsUI();
       savePrefs();
     });
@@ -879,7 +913,9 @@
       if (state.prefs.analytics) track('analytics_consent_granted');
     });
     $('privacy-data-ads').addEventListener('click', function () {
-      setAdsPersonalized(this.getAttribute('aria-pressed') !== 'true');
+      var on = this.getAttribute('aria-pressed') !== 'true';
+      track('ads_consent_changed', { value: on ? 'on' : 'off' });
+      setAdsPersonalized(on);
     });
     $('privacy-data-close').addEventListener('click', function () {
       $('privacy-data').hidden = true;
@@ -947,6 +983,7 @@
     }
 
     function eraseProgress() {
+      track('progress_reset');
       state.progress = { completed: {} };
       state.dailyState = {};
       state.randomState = { difficulty: 1 };
@@ -982,11 +1019,13 @@
       }
     });
 
-    var frame = $('arena');
-    frame.addEventListener('pointerdown', onPointerDown);
-    frame.addEventListener('pointermove', onPointerMove);
-    frame.addEventListener('pointerup', onPointerUp);
-    frame.addEventListener('pointercancel', onPointerCancel);
+    /* The gesture surface is the whole play screen, not just the arena, so
+       the piece can be driven from wherever the thumb already rests. */
+    var surface = $('screen-game');
+    surface.addEventListener('pointerdown', onPointerDown);
+    surface.addEventListener('pointermove', onPointerMove);
+    surface.addEventListener('pointerup', onPointerUp);
+    surface.addEventListener('pointercancel', onPointerCancel);
     document.addEventListener('keydown', onKey);
     document.addEventListener('keyup', onKeyUp);
 
@@ -999,6 +1038,19 @@
       touchTs = now;
     }, { passive: false });
     document.addEventListener('gesturestart', function (ev) { ev.preventDefault(); });
+
+    /* The long-press magnifier is OS-level selection UI and fires below CSS,
+       so user-select: none alone does not stop it. Capture phase, so nothing
+       downstream can re-enable it. The seed field still needs to be usable. */
+    if (window.Capacitor) {
+      document.body.classList.add('is-native');
+      ['selectstart', 'contextmenu', 'dragstart', 'copy', 'cut'].forEach(function (evt) {
+        document.addEventListener(evt, function (ev) {
+          if (ev.target && ev.target.id === 'seed-input') return;
+          ev.preventDefault();
+        }, true);
+      });
+    }
   }
 
   function openSettings() {
@@ -1018,10 +1070,9 @@
     if (ads) setToggleBtn(ads, state.prefs.personalizedAds === true);
   }
 
-  /* Publishes the current consent state to Track (and could to Ads too if a
-     personalised-ads toggle existed here). AdMob's own UMP flow governs the
-     ads flag independently — we assume "not personalised" unless the user
-     goes through UMP. */
+  /* Publishes the current consent state to Track and to Ads. The ads flag is
+     what Unity actually honours, which is the stored toggle narrowed by ATT
+     on iOS — not the toggle on its own. */
   function applyConsent() {
     window.__consentState = {
       analytics: state.prefs.analytics === true,
@@ -1046,11 +1097,7 @@
     if (!Ads || !Ads.isNative || !Ads.isNative()) return;
     var attPromise = Ads.getPlatform() === 'ios' ? Ads.ensureAtt(true) : Promise.resolve();
     try { await Ads.init(); } catch (e) {}
-    try { await Ads.runUmp(true); } catch (e) {}
     try { await attPromise; } catch (e) {}
-    if (Ads.showPrivacyOptionsForm) {
-      try { await Ads.showPrivacyOptionsForm(); } catch (e) {}
-    }
     applyConsent();
     updateSettingsUI();
   }
@@ -1063,7 +1110,6 @@
     if (!Ads || !Ads.isNative || !Ads.isNative()) return;
     var attPromise = Ads.getPlatform() === 'ios' ? Ads.ensureAtt(true) : Promise.resolve();
     try { await Ads.init(); } catch (e) {}
-    try { await Ads.runUmp(); } catch (e) {}
     var attStatus = null;
     try { attStatus = await attPromise; } catch (e) {}
     if (attStatus === 'authorized') {
@@ -1104,7 +1150,7 @@
       applyConsent();
       var Ads = window.Ads;
       if (Ads && Ads.isNative && Ads.isNative()) {
-        Ads.init().then(function () { return Ads.runUmp(); })
+        Ads.init()
           .then(function () { return Ads.ensureAtt(false); })
           .then(function () { applyConsent(); updateSettingsUI(); Ads.warm(); })
           .catch(function () {});
@@ -1122,6 +1168,40 @@
      itself a no-op without consent. */
   function track(name, params) {
     if (window.Track) window.Track.event(name, params);
+  }
+
+  /* The shape every level-scoped event shares, so GA4 funnels can be cut by
+     mode, level and size without each call site restating it. */
+  function levelParams(extra) {
+    var game = state.game;
+    var p = {
+      mode: state.mode,
+      level: state.mode === 'campaign' ? state.levelIndex : undefined,
+      difficulty: state.mode === 'random' ? state.difficulty : undefined,
+      pieces: game ? game.level.pieces.length : undefined
+    };
+    if (extra) for (var k in extra) {
+      if (Object.prototype.hasOwnProperty.call(extra, k)) p[k] = extra[k];
+    }
+    return p;
+  }
+
+  function levelSeconds() {
+    if (!state.levelStartedAt) return undefined;
+    return Math.round((Date.now() - state.levelStartedAt) / 1000);
+  }
+
+  /* Leaving a board unfinished is the one outcome the win and fail events
+     cannot show, and it is the one that says a level is too hard. */
+  function noteQuit() {
+    var game = state.game;
+    if (!game || game.won || game.lost) return;
+    track('level_quit', levelParams({
+      pieces_placed: game.currentIdx,
+      undos: game.undosUsed,
+      restarts: state.levelRestarts,
+      seconds: levelSeconds()
+    }));
   }
 
   function boot() {

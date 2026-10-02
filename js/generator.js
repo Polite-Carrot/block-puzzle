@@ -186,13 +186,14 @@
       rise = Math.max(0, Math.min(maxRise, rise + delta));
       heights.push(rise);
     }
-    var allNonZero = true;
-    for (var k = 0; k < heights.length; k++) if (heights[k] === 0) allNonZero = false;
-    if (allNonZero) {
-      var minIdx = 0;
-      for (var i = 1; i < w; i++) if (heights[i] < heights[minIdx]) minIdx = i;
-      heights[minIdx] = 0;
-    }
+    /* Drop the whole floor until its shallowest column reaches the bottom.
+       Zeroing just that one column instead would cut a cliff into an
+       otherwise gentle floor — on a high floor that leaves a one-wide shaft
+       several rows deep, hanging below the arena like a hole in it. Shifting
+       the lot keeps every step between neighbours at one row. */
+    var lowest = heights[0];
+    for (var k = 1; k < heights.length; k++) if (heights[k] < lowest) lowest = heights[k];
+    if (lowest > 0) for (var j = 0; j < heights.length; j++) heights[j] -= lowest;
     for (var col = 0; col < w; col++) {
       for (var d = 0; d < heights[col]; d++) {
         cells.push({ row: h - 1 - d, col: col });
@@ -291,7 +292,112 @@
       w: 8, h: 11, terrainMax: 4, pool: POOL_HARDEST, palette: 8, fallSpeed: 0.8 }
   ];
 
+  /* ── counting the ways a level can be solved ──────────────────────── */
+
+  /* A perfect packing can never contain a buried empty cell, so every board
+     the player can still win from is filled contiguously from the floor up.
+     That makes the column heights a complete description of the board, which
+     is what lets this count whole solutions rather than walk a tree of
+     placements. Counting stops at `cap`. */
+  function countSolutions(level, cap) {
+    var limit = cap || 3;
+    var w = level.width;
+    var totalRows = SKY + level.height;
+
+    var start = new Array(w);
+    for (var c = 0; c < w; c++) start[c] = 0;
+    for (var o = 0; o < level.obstacles.length; o++) start[level.obstacles[o].col]++;
+
+    /* Distinct moves per piece. Two rotations that draw the same cells are
+       the same move to the player, and a piece carrying a covered gap of its
+       own can never belong to a perfect packing. */
+    var moves = [];
+    for (var p = 0; p < level.pieces.length; p++) {
+      var seen = {};
+      var options = [];
+      for (var rot = 0; rot < 4; rot++) {
+        var geom = Shapes.cellsOf(level.pieces[p].shape, rot);
+        var ids = [];
+        for (var i = 0; i < geom.cells.length; i++) ids.push(geom.cells[i].r + ':' + geom.cells[i].c);
+        var key = ids.sort().join('|');
+        if (seen[key]) continue;
+        seen[key] = true;
+
+        var low = [], count = [];
+        for (var j = 0; j < geom.cols; j++) { low[j] = -1; count[j] = 0; }
+        for (var k = 0; k < geom.cells.length; k++) {
+          var cell = geom.cells[k];
+          if (cell.r > low[cell.c]) low[cell.c] = cell.r;
+          count[cell.c]++;
+        }
+        var solid = true;
+        for (var m = 0; m < geom.cols; m++) {
+          if (!count[m]) continue;
+          var top = low[m] - count[m] + 1;
+          var filled = 0;
+          for (var q = 0; q < geom.cells.length; q++) {
+            if (geom.cells[q].c === m && geom.cells[q].r >= top && geom.cells[q].r <= low[m]) filled++;
+          }
+          if (filled !== count[m]) { solid = false; break; }
+        }
+        if (solid) options.push({ cols: geom.cols, low: low, count: count });
+      }
+      moves.push(options);
+    }
+
+    var memo = [];
+    for (var n = 0; n <= moves.length; n++) memo.push({});
+
+    function walk(index, heights) {
+      if (index === moves.length) {
+        for (var a = 0; a < w; a++) if (heights[a] !== level.height) return 0;
+        return 1;
+      }
+      var key = heights.join(',');
+      var hit = memo[index][key];
+      if (hit !== undefined) return hit;
+
+      var found = 0;
+      var options = moves[index];
+      for (var t = 0; t < options.length && found < limit; t++) {
+        var move = options[t];
+        for (var col = 0; col + move.cols <= w && found < limit; col++) {
+          /* Every column the piece covers has to meet its underside at the
+             same row, otherwise the piece bridges a gap and buries a cell. */
+          var rest = null;
+          var flush = true;
+          for (var b = 0; b < move.cols; b++) {
+            if (!move.count[b]) continue;
+            var landing = totalRows - 1 - heights[col + b] - move.low[b];
+            if (rest === null) rest = landing;
+            else if (landing !== rest) { flush = false; break; }
+          }
+          if (!flush || rest === null || rest < SKY) continue;
+
+          var next = heights.slice();
+          var fits = true;
+          for (var d = 0; d < move.cols; d++) {
+            if (!move.count[d]) continue;
+            next[col + d] += move.count[d];
+            if (next[col + d] > level.height) { fits = false; break; }
+          }
+          if (!fits) continue;
+          found += walk(index + 1, next);
+        }
+      }
+      if (found > limit) found = limit;
+      memo[index][key] = found;
+      return found;
+    }
+
+    return walk(0, start);
+  }
+
   /* ── building a level ─────────────────────────────────────────────── */
+
+  /* A level with a single answer is a memory test: one wrong drop and the
+     only way back is Restart. Three gives the player room to think. */
+  var MIN_SOLUTIONS = 3;
 
   function buildFromParams(params, seed, kind) {
     var palette = COLOURS.slice(0, params.palette);
@@ -304,7 +410,7 @@
       var pieces = solution.map(function (s, i) {
         return { shape: s.shape, colour: colours[i], rot: s.rot, col: s.col, top: s.top };
       });
-      return {
+      var level = {
         id: kind + '-' + seed,
         kind: kind,
         seed: seed,
@@ -314,6 +420,8 @@
         pieces: pieces,
         fallSpeed: params.fallSpeed
       };
+      if (countSolutions(level, MIN_SOLUTIONS) < MIN_SOLUTIONS) continue;
+      return level;
     }
     return null;
   }
@@ -363,6 +471,7 @@
     tileArena: tileArena,
     makeTerrain: makeTerrain,
     colourPieces: colourPieces,
+    countSolutions: countSolutions,
     rng: rng
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -24,6 +24,9 @@
   --ink:       #2b2142;
   --ink-soft:  #6f6389;
   --ink-faint: rgba(43, 33, 66, .16);
+  /* Blocks set their own --ink for the colour-blind mark, so their outline
+     needs a token of its own that a cell cannot shadow. */
+  --block-line: #2b2142;
 
   /* action */
   --accent:      #ff5d8f;
@@ -58,6 +61,24 @@ html {
 input, textarea {
   -webkit-user-select: text;
   user-select: text;
+}
+
+/* !important because some WebView builds ignore user-select on buttons and
+   on the arena, raising the native selection UI over a long-pressed block. */
+body.is-native,
+body.is-native *,
+body.is-native button,
+body.is-native .block {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+  -webkit-user-drag: none;
+}
+body.is-native #seed-input {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+  -webkit-touch-callout: default !important;
 }
 
 html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }
@@ -126,6 +147,50 @@ body.playing.is-tight #screen-game.is-active { gap: 5px; }
   to   { opacity: 1; transform: none; }
 }
 
+/* Polite Carrot startup lockup, shared with the other games. */
+#boot {
+  position: fixed;
+  inset: 0;
+  height: 100vh;
+  height: 100dvh;
+  z-index: 100;
+  background: #000;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.55s ease;
+}
+#boot.done { opacity: 0; }
+.boot-lockup {
+  display: grid;
+  justify-items: center;
+  width: min(68vw, 52vh, 360px);
+}
+.boot-mark {
+  display: block;
+  width: 92%;
+  height: auto;
+  opacity: 0;
+  transform: scale(0.94);
+  animation: boot-logo 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.18s forwards;
+}
+.boot-name {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 12px;
+  opacity: 0;
+  transform: translateY(8px);
+  animation: boot-name 0.55s ease 0.72s forwards;
+}
+@keyframes boot-logo {
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes boot-name {
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* ───────── buttons ───────── */
 
 .btn {
@@ -148,6 +213,7 @@ body.playing.is-tight #screen-game.is-active { gap: 5px; }
 .btn:hover:not(:disabled) { background: var(--paper-warm); }
 .btn:active:not(:disabled) { transform: translateY(var(--lift)); box-shadow: 0 0 0 var(--ink); }
 .btn:disabled { opacity: .45; cursor: default; box-shadow: 0 var(--lift) 0 var(--ink-faint); }
+.btn--wide { display: block; width: 100%; }
 
 .btn:focus-visible,
 .tile:focus-visible,
@@ -705,6 +771,10 @@ body.playing.is-tight #screen-game.is-active { gap: 5px; }
   touch-action: none;
 }
 
+/* The whole play screen is the gesture surface, so the browser must not claim
+   pans anywhere on it. */
+#screen-game { touch-action: none; }
+
 /* The frame is the clickable surface. All the painting — the sky-blue
    playable interior and the ink outline — is done by the SVG child below;
    the frame itself is transparent so the arena's actual shape is jagged,
@@ -747,19 +817,44 @@ body.playing.is-tight #screen-game.is-active { gap: 5px; }
     inset 0 0 0 1px rgba(43, 33, 66, .08);
 }
 
-/* A block cell: solid colour with a darker inset lip, so the pile reads as
-   3D without a real shadow. --fill, --edge and --ink are set per cell. */
+/* A block cell. The visible tile is a pseudo-element inset inside the cell,
+   so neighbouring blocks read as separate tiles with a gap between them
+   rather than merging into one slab. --fill and --ink are set per cell. */
 .cell--block {
-  background: var(--fill);
-  box-shadow:
-    inset 0 -6px 0 var(--edge),
-    inset 0 0 0 1.5px rgba(43, 33, 66, .38);
-  border-radius: 4px;
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
 }
+.cell--block::before,
+.arena__piece .block::before,
+.queue .block::before {
+  content: '';
+  position: absolute;
+  /* Tiles overlap by half an outline so the rounded corners of four
+     neighbours close up instead of leaving light pinches between them. */
+  inset: calc(var(--cell) * -.045);
+  border-radius: calc(var(--cell) * .22);
+  background: var(--fill);
+  border: max(3px, calc(var(--cell) * .09)) solid var(--block-line);
+}
+/* The catchlight: a short bar down the top-left of every tile. */
+.cell--block::after,
+.arena__piece .block::after,
+.queue .block::after {
+  content: '';
+  position: absolute;
+  left: calc(var(--cell) * .2);
+  top: calc(var(--cell) * .19);
+  width: max(2px, calc(var(--cell) * .075));
+  height: calc(var(--cell) * .3);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .85);
+  pointer-events: none;
+}
 .cell__mark {
+  position: relative;
+  z-index: 1;
   display: none;
   color: var(--ink);
   font-family: "Baloo 2", sans-serif;
@@ -771,12 +866,15 @@ body.playing.is-tight #screen-game.is-active { gap: 5px; }
 body.cb-assist .cell__mark { display: block; opacity: .9; }
 
 /* The ceiling line — an ink dash across the arena at the top of the play
-   area. Drawn as a background image so it does not steal clicks. */
+   area. Drawn as a background image so it does not steal clicks, and lifted
+   clear of the first row so a piece resting at the top sits under the line
+   rather than through it. */
 .arena__ceiling {
   position: absolute;
   left: 0; right: 0;
   top: var(--sky);
   height: 3px;
+  transform: translateY(-100%);
   background: repeating-linear-gradient(90deg,
     var(--ink) 0, var(--ink) 8px, transparent 8px, transparent 14px);
   pointer-events: none;
@@ -806,6 +904,36 @@ body.cb-assist .cell__mark { display: block; opacity: .9; }
 }
 .arena__ghost { z-index: 2; }
 
+/* Wind behind a piece the player is driving down. The box hangs entirely
+   above the piece — anchored to its top edge rather than given a height of
+   its own — so the streaks never land inside a tall piece or inside the
+   empty corner of its bounding box. Hidden until the drop is on. */
+.arena__wind {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  transition: opacity .12s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+/* Each streak is pinned above the top edge of the column it belongs to and
+   grows upwards, clear of the block by a small gap. */
+.arena__wind i {
+  position: absolute;
+  left: calc((var(--c) + .5) * var(--cell));
+  top: calc((var(--y) - var(--len)) * var(--cell) - var(--cell) * .2);
+  width: max(2px, calc(var(--cell) * .085));
+  height: calc(var(--len) * var(--cell));
+  margin-left: calc(max(2px, calc(var(--cell) * .085)) / -2);
+  border-radius: 999px;
+  background: rgba(120, 190, 235, .85);
+}
+
+.is-dropping .arena__wind { opacity: 1; }
+
 .arena__piece .block,
 .arena__ghost .block,
 .queue .block {
@@ -814,17 +942,14 @@ body.cb-assist .cell__mark { display: block; opacity: .9; }
   height: var(--cell);
   left: calc(var(--c) * var(--cell));
   top:  calc(var(--r) * var(--cell));
-  background: var(--fill);
-  box-shadow:
-    inset 0 -6px 0 var(--edge),
-    inset 0 0 0 1.5px rgba(43, 33, 66, .38);
-  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .arena__piece .block { z-index: 3; }
 .block__mark {
+  position: relative;
+  z-index: 1;
   display: none;
   color: var(--ink);
   font-family: "Baloo 2", sans-serif;
@@ -835,12 +960,13 @@ body.cb-assist .cell__mark { display: block; opacity: .9; }
 }
 body.cb-assist .block__mark { display: block; opacity: .9; }
 
-.arena__ghost .block {
+.arena__ghost .block::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: calc(var(--cell) * .22);
   background: transparent;
-  box-shadow:
-    inset 0 0 0 3px var(--fill),
-    inset 0 0 0 4px rgba(43, 33, 66, .35);
-  border-radius: 4px;
+  border: max(3px, calc(var(--cell) * .09)) solid var(--fill);
 }
 
 /* ───────── queue ───────── */

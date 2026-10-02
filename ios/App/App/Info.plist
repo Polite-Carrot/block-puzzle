@@ -22,13 +22,6 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<!-- AdMob application ID for this app in the AdMob console. Distinct
-	     from the interstitial ad unit ID, which lives in js/ads.js. Missing
-	     or invalid values crash the app on startup. -->
-	<key>GADIsAdManagerApp</key>
-	<false/>
-	<key>GADApplicationIdentifier</key>
-	<string>ca-app-pub-2022992563510125~8393307907</string>
 	<key>FIREBASE_ANALYTICS_COLLECTION_ENABLED</key>
 	<false/>
 	<key>GOOGLE_ANALYTICS_DEFAULT_ALLOW_ANALYTICS_STORAGE</key>
@@ -39,17 +32,18 @@
 	<false/>
 	<key>GOOGLE_ANALYTICS_DEFAULT_ALLOW_AD_PERSONALIZATION_SIGNALS</key>
 	<false/>
-	<!-- iOS 14.5+ requires an explicit prompt before AdMob can read IDFA.
+	<!-- iOS 14.5+ requires an explicit prompt before the IDFA can be read.
 	     If the user declines, ads still show but non-personalised. -->
 	<key>NSUserTrackingUsageDescription</key>
 	<string>This lets us show ads matched to your interests instead of generic ones. We do not collect your name, email, contacts, photos or location, and your puzzle progress never leaves your device. Decline and the game plays exactly the same, with generic ads.</string>
-	<!-- SKAdNetwork identifier for Google (AdMob). Required so Apple's
-	     conversion API attributes installs from Google-served ads. -->
+	<!-- SKAdNetwork identifier for Unity Ads. Required so Apple's conversion
+	     API attributes installs from Unity-served ads. Unity lists further
+	     partner IDs in the dashboard; add them here if you enable mediation. -->
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict>
 			<key>SKAdNetworkIdentifier</key>
-			<string>cstr6suwn9.skadnetwork</string>
+			<string>4dzt52r2t5.skadnetwork</string>
 		</dict>
 	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
