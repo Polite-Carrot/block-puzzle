@@ -62,7 +62,33 @@
             [0, 1, 1]],
     pen_v: [[1, 0, 0],
             [1, 0, 0],
-            [1, 1, 1]]
+            [1, 1, 1]],
+
+    /* Mirror images of the one-handed pentominoes. Rotation alone can never
+       turn a P into its reflection, so without these every level dealt the
+       same hand. */
+    pen_q: [[1, 1],
+            [1, 1],
+            [0, 1]],
+    pen_j: [[0, 1],
+            [0, 1],
+            [0, 1],
+            [1, 1]],
+    pen_y2: [[1, 0],
+             [1, 1],
+             [1, 0],
+             [1, 0]],
+    pen_s: [[0, 1, 1],
+            [0, 1, 0],
+            [1, 1, 0]],
+    pen_n: [[0, 1],
+            [0, 1],
+            [1, 1],
+            [1, 0]],
+    pen_n2: [[1, 0],
+             [1, 0],
+             [1, 1],
+             [0, 1]]
   };
 
   var IDS = Object.keys(CATALOGUE);

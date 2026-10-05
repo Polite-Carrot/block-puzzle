@@ -24,11 +24,13 @@
   var POOL_TINY    = ['dom', 'tri_i', 'tri_l', 'tet_o', 'tet_l', 'tet_j'];
   var POOL_SMALL   = ['dom', 'tri_l', 'tet_o', 'tet_l', 'tet_j', 'tet_t', 'tet_i', 'tet_s', 'tet_z'];
   var POOL_MID     = ['dom', 'tet_o', 'tet_l', 'tet_j', 'tet_t', 'tet_i', 'tet_s', 'tet_z',
-                      'pen_p', 'pen_l', 'pen_u', 'pen_y'];
+                      'pen_p', 'pen_q', 'pen_l', 'pen_j', 'pen_u', 'pen_y', 'pen_y2'];
   var POOL_LARGE   = ['dom', 'tet_l', 'tet_j', 'tet_t', 'tet_i', 'tet_s', 'tet_z',
-                      'pen_p', 'pen_l', 'pen_u', 'pen_y', 'pen_t', 'pen_v', 'pen_w', 'pen_z'];
+                      'pen_p', 'pen_q', 'pen_l', 'pen_j', 'pen_u', 'pen_y', 'pen_y2',
+                      'pen_t', 'pen_v', 'pen_w', 'pen_z', 'pen_s', 'pen_n', 'pen_n2'];
   var POOL_HARDEST = ['dom', 'tet_s', 'tet_z', 'tet_t', 'tet_l', 'tet_j',
-                      'pen_p', 'pen_l', 'pen_u', 'pen_y', 'pen_t', 'pen_v', 'pen_w', 'pen_z'];
+                      'pen_p', 'pen_q', 'pen_l', 'pen_j', 'pen_u', 'pen_y', 'pen_y2',
+                      'pen_t', 'pen_v', 'pen_w', 'pen_z', 'pen_s', 'pen_n', 'pen_n2'];
 
   /* mulberry32 — small, fast, deterministic. */
   function rng(seed) {
@@ -135,6 +137,7 @@
       grid[SKY + obstacles[i].row][obstacles[i].col] = { obstacle: true };
     }
     var solution = [];
+    var used = {};
     var started = Date.now();
     var exhausted = false;
 
@@ -153,7 +156,12 @@
       var sizes = Array.from(grouped.keys()).sort(function (a, b) { return b - a; });
       var ordered = [];
       for (var m = 0; m < sizes.length; m++) {
-        ordered = ordered.concat(shufflePlace(grouped.get(sizes[m]), rand));
+        /* Shuffle, then favour the shapes this board has used least — the
+           most compact piece fits the most gaps and would otherwise win
+           nearly every time. */
+        var group = shufflePlace(grouped.get(sizes[m]), rand);
+        group.sort(function (a, b) { return (used[a.shape] || 0) - (used[b.shape] || 0); });
+        ordered = ordered.concat(group);
       }
       for (var n = 0; n < ordered.length; n++) {
         var cand = ordered[n];
@@ -162,7 +170,9 @@
             { placementIndex: solution.length };
         }
         solution.push({ shape: cand.shape, rot: cand.rot, col: cand.col, top: cand.top });
+        used[cand.shape] = (used[cand.shape] || 0) + 1;
         if (backtrack()) return true;
+        used[cand.shape]--;
         solution.pop();
         for (var jj = 0; jj < cand.geom.cells.length; jj++) {
           grid[cand.top + cand.geom.cells[jj].r][cand.col + cand.geom.cells[jj].c] = null;
@@ -395,12 +405,13 @@
 
   /* ── building a level ─────────────────────────────────────────────── */
 
-  /* A level with a single answer is a memory test: one wrong drop and the
-     only way back is Restart. Three gives the player room to think. */
-  var MIN_SOLUTIONS = 3;
+  /* Perfect packings a level must allow, so three stars is a puzzle to work
+     out rather than one exact sequence to stumble on. */
+  var MIN_SOLUTIONS = 7;
 
   function buildFromParams(params, seed, kind) {
     var palette = COLOURS.slice(0, params.palette);
+    var best = null, bestCount = 0;
     for (var attempt = 0; attempt < 80; attempt++) {
       var rand = rng(seed + attempt * 17);
       var obstacles = makeTerrain(params.w, params.h, params.terrainMax, rand);
@@ -420,10 +431,12 @@
         pieces: pieces,
         fallSpeed: params.fallSpeed
       };
-      if (countSolutions(level, MIN_SOLUTIONS) < MIN_SOLUTIONS) continue;
-      return level;
+      var count = countSolutions(level, MIN_SOLUTIONS);
+      if (count >= MIN_SOLUTIONS) return level;
+      if (count > bestCount) { best = level; bestCount = count; }
     }
-    return null;
+    /* A rare board where no deal reaches the bar still ships its roomiest. */
+    return best;
   }
 
   function buildCampaignLevel(index, seed) {

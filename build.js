@@ -36,7 +36,7 @@ if (!body) throw new Error('index.html: no <body> found');
 
 const markup = body[1].replace(/[ \t]*<script\s+src=[^>]*><\/script>\s*/gi, '').trim();
 
-const title = (html.match(/<title>([\s\S]*?)<\/title>/i) || [, 'Block Puzzle'])[1].trim();
+const title = (html.match(/<title>([\s\S]*?)<\/title>/i) || [, 'Color Block Fall'])[1].trim();
 
 /* A literal </script> or </style> inside the inlined text would close the tag
  * early. Nothing uses them today; guard anyway so a future edit cannot

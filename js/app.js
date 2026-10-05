@@ -161,6 +161,12 @@
         (isLocked ? ' tile--locked' : '');
       UI.el('span', 'tile__num', btn).textContent = idx;
       if (isLocked) UI.el('span', 'tile__lock', btn).textContent = '🔒';
+      if (isDone) {
+        var earned = starsFor(idx);
+        var pips = UI.el('span', 'tile__stars', btn);
+        pips.setAttribute('aria-label', earned + ' of 3 stars');
+        for (var p = 0; p < 3; p++) UI.el('i', p < earned ? 'is-on' : '', pips);
+      }
       btn.disabled = isLocked;
       btn.addEventListener('click', (function (n) {
         return function () { startCampaignLevel(n); };
@@ -296,6 +302,7 @@
     state.game = new Engine.Game(level);
     state.levelStartedAt = Date.now();
     state.levelRestarts = 0;
+    state.adNoted = false;
     track('level_start', levelParams());
     var title = state.mode === 'campaign'
       ? 'Level ' + state.levelIndex
@@ -493,13 +500,18 @@
     if (!game || game.won || game.lost) return;
     if (game.tryRotate()) { Sound.rotate(); redraw(); }
   }
+  /* Also reachable from the result screens: after a fail, or a win short of
+     three stars, peeling pieces back off the top is how to chase a better fit. */
   function undo() {
     var game = state.game;
-    if (!game || !game.canUndo() || game.won) return;
+    if (!game || !game.canUndo()) return;
+    if (game.won && game.stars() === 3) return;
+    var from = game.lost ? 'fail' : game.won ? 'win' : 'play';
     game.undo();
-    track('undo', levelParams({ pieces_placed: game.currentIdx }));
+    track('undo', levelParams({ pieces_placed: game.currentIdx, from: from }));
     Sound.undo();
     $('fail-overlay').hidden = true;
+    $('overlay').hidden = true;
     redraw();
     state.lastTime = performance.now();
     startFallLoop();
@@ -654,14 +666,32 @@
     'Every stone laid.',
     'That will do nicely.'
   ];
+  /* Under three stars there is a perfect fit still waiting, so say so. */
+  var NEAR_LINES = [
+    'So close — one row from perfect.',
+    'Nearly flush. There is a perfect fit in there.',
+    'Just over the line. Try it again for all three?',
+    'One gap away from perfect.'
+  ];
+  var ROUGH_LINES = [
+    'Made it! Every board packs perfectly — can you find it?',
+    'Cleared, with room to tidy. Three stars is in there somewhere.',
+    'Through by a whisker. A perfect fit exists.'
+  ];
   var FAIL_LINES = [
-    'A piece went above the line.',
-    'That last one poked through.',
+    'A piece went past the red line.',
+    'That last one poked through the top.',
     'Ran out of room at the top.',
-    'The pile crossed the line.',
+    'The pile climbed past the red line.',
     'One too many for the space.',
     'The stack outgrew the arena.'
   ];
+
+  /* Saves from before stars recorded `true`, which then meant a perfect fit. */
+  function starsFor(idx) {
+    var v = state.progress.completed[idx];
+    return v === true ? 3 : (v | 0);
+  }
 
   function pickLine(pool) {
     return pool[Math.floor(Math.random() * pool.length)];
@@ -670,20 +700,23 @@
   function onWin() {
     stopFallLoop();
     Sound.win();
+    var stars = state.game.stars();
+    state.lastStars = stars;
     track('level_complete', levelParams({
+      stars: stars,
       undos: state.game.undosUsed,
       restarts: state.levelRestarts,
       seconds: levelSeconds()
     }));
     if (state.mode === 'campaign') {
-      state.progress.completed[state.levelIndex] = true;
+      state.progress.completed[state.levelIndex] = Math.max(starsFor(state.levelIndex), stars);
       saveJSON(PROGRESS_KEY, state.progress);
       if (state.levelIndex === LEVELS.length) track('campaign_complete');
     } else if (state.mode === 'daily') {
       state.dailyState[state.seed] = 'won';
       saveJSON(DAILY_KEY, state.dailyState);
     }
-    if (window.Ads) window.Ads.noteLevelComplete();
+    if (window.Ads && !state.adNoted) { window.Ads.noteLevelComplete(); state.adNoted = true; }
     var used = state.game.level.pieces
       .map(function (p) { return p.colour; })
       .filter(function (v, i, a) { return a.indexOf(v) === i; });
@@ -693,10 +726,17 @@
 
   function showWin() {
     var atEnd = state.mode === 'campaign' && state.levelIndex === LEVELS.length;
-    $('win-title').textContent = atEnd ? 'Campaign complete!' : 'Cleared!';
+    var stars = state.lastStars || 3;
+    $('win-title').textContent = atEnd ? 'Campaign complete!'
+      : stars === 3 ? 'Perfect fit!' : 'Cleared!';
     $('win-line').textContent = atEnd
       ? 'Every level, cleared. Every board, packed.'
-      : pickLine(WIN_LINES);
+      : pickLine(stars === 3 ? WIN_LINES : stars === 2 ? NEAR_LINES : ROUGH_LINES);
+    var row = $('win-stars');
+    row.setAttribute('aria-label', stars + (stars === 1 ? ' star' : ' stars'));
+    var marks = row.querySelectorAll('.star');
+    for (var s = 0; s < marks.length; s++) marks[s].classList.toggle('is-on', s < stars);
+    $('win-undo').hidden = stars === 3;
     var nextBtn = $('win-next');
     if (state.mode === 'campaign') {
       nextBtn.textContent = state.levelIndex < LEVELS.length ? 'Next' : 'Menu';
@@ -842,6 +882,8 @@
 
     $('back').addEventListener('click', goCampaign);
     $('undo').addEventListener('click', undo);
+    $('fail-undo').addEventListener('click', undo);
+    $('win-undo').addEventListener('click', undo);
     $('restart').addEventListener('click', restart);
     $('win-next').addEventListener('click', goNext);
     $('win-retry').addEventListener('click', function () {

@@ -42,6 +42,10 @@
       'vector-effect': 'non-scaling-stroke'
     }, this.shape);
     this.ceiling = el('div', 'arena__ceiling', this.frame);
+    /* One band per grace row, labelled with what resting there is worth. */
+    this.grace = el('div', 'arena__grace', this.frame);
+    el('span', 'arena__band arena__band--2', this.grace).textContent = '★★';
+    el('span', 'arena__band arena__band--1', this.grace).textContent = '★';
     this.grid = el('div', 'arena__grid', this.frame);
     this.ghost = el('div', 'arena__ghost', this.frame);
     this.ghostInner = el('div', 'arena__layer', this.ghost);
@@ -219,7 +223,7 @@
     this._placeLayer(this.piece, this.pieceInner,
       game.currentRow + (game.subrow || 0), game.currentCol);
     this.piece.style.opacity = '1';
-    if (landing === null || landing < game.sky) {
+    if (landing === null || landing < game.sky - game.grace) {
       this.ghost.style.opacity = '0';
     } else {
       this._placeLayer(this.ghost, this.ghostInner, landing, game.currentCol);
@@ -272,7 +276,7 @@
       var slot = el('div', 'queue__slot' + (i === currentIdx ? ' is-now' : ''), this.mount);
       if (i === currentIdx) el('span', 'queue__cue', slot).textContent = 'NEXT';
       var thumb = el('div', 'queue__thumb', slot);
-      this._paintThumb(thumb, pc.shape, 0, pc.colour);
+      this._paintThumb(thumb, pc.shape, global.Engine.spawnRotation(level, i), pc.colour);
     }
   };
 

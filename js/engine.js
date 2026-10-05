@@ -27,11 +27,17 @@
      that boards dragged, and one dial is easier to retune than 1000 levels. */
   var FALL_SCALE = 1.4;
 
+  /* Rows above the line a piece may still rest in. Every level packs exactly
+     to the line, so staying under it is a perfect fit and earns three stars;
+     each row of overshoot costs one, and going past the last is a loss. */
+  var GRACE = 2;
+
   function Game(level) {
     this.level = level;
     this.width = level.width;
     this.height = level.height;
     this.sky = SKY;
+    this.grace = GRACE;
     /* Speed comes from the level so the first few boards run slower than the
        hundredth. Falls back to a gentle default for hand-crafted levels
        that forgot to set one. Scaled here rather than in the level data so
@@ -58,6 +64,7 @@
     this.won = false;
     this.lost = false;
     this.undosUsed = 0;
+    this.peak = 0;
     /* subrow is the fractional row the current piece has descended past its
        integer row — display-only, so movement snaps to whole grid cells and
        the pile stays aligned. */
@@ -77,14 +84,7 @@
   Game.prototype._spawnCurrent = function () {
     var pc = this.currentPiece();
     if (!pc) { this.currentRow = 0; this.currentCol = 0; this.currentRot = 0; return; }
-    /* Pick the first rotation that fits the arena's width — otherwise a
-       narrow board would spawn the piece already off the right edge. */
-    var rot = 0;
-    for (var i = 0; i < 4; i++) {
-      var g = Shapes.cellsOf(pc.shape, i);
-      if (g.cols <= this.width) { rot = i; break; }
-    }
-    this.currentRot = rot;
+    this.currentRot = spawnRotation(this.level, this.currentIdx);
     var geom = Shapes.cellsOf(pc.shape, this.currentRot);
     var mid = Math.floor((this.width - geom.cols) / 2);
     this.currentCol = clamp(mid, 0, this.width - geom.cols);
@@ -213,6 +213,7 @@
       if (r < 0) continue;
       this.grid[r][c] = { placementIndex: placementIndex, colour: pc.colour };
     }
+    var above = this.sky - this.currentRow;
     var placement = {
       idx: this.currentIdx,
       shape: pc.shape,
@@ -220,10 +221,12 @@
       rot: this.currentRot,
       col: this.currentCol,
       top: this.currentRow,
-      overflow: this.currentRow < this.sky
+      above: above > 0 ? above : 0,
+      overflow: above > GRACE
     };
     this.placed.push(placement);
     this.currentIdx++;
+    if (placement.above > this.peak) this.peak = placement.above;
     if (placement.overflow) this.lost = true;
     else if (this.currentIdx >= this.level.pieces.length) this.won = true;
     else this._spawnCurrent();
@@ -263,14 +266,41 @@
     this.won = false;
     this.lost = false;
     this.undosUsed++;
+    this.peak = 0;
+    for (var p = 0; p < this.placed.length; p++) {
+      if (this.placed[p].above > this.peak) this.peak = this.placed[p].above;
+    }
     this._spawnCurrent();
     return last;
   };
 
+  /* 3 for a perfect pack, one fewer for each row the stack rose above it. */
+  Game.prototype.stars = function () {
+    return Math.max(1, 3 - this.peak);
+  };
+
   function clamp(n, lo, hi) { return n < lo ? lo : n > hi ? hi : n; }
+
+  /* Which way a piece arrives. Seeded from the level and its place in the
+     queue so it varies piece to piece but is the same on every replay, and
+     the queue can preview it. Skips any rotation too wide for the arena. */
+  function spawnRotation(level, idx) {
+    var key = String(level.id || '') + ':' + idx;
+    var h = 0;
+    for (var i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;
+    var start = (h >>> 0) % 4;
+    var shape = level.pieces[idx].shape;
+    for (var k = 0; k < 4; k++) {
+      var rot = (start + k) % 4;
+      if (Shapes.cellsOf(shape, rot).cols <= level.width) return rot;
+    }
+    return 0;
+  }
 
   global.Engine = {
     SKY: SKY,
-    Game: Game
+    GRACE: GRACE,
+    Game: Game,
+    spawnRotation: spawnRotation
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1,4 +1,4 @@
-/* Block Puzzle — styles
+/* Color Block Fall — styles
  *
  * One cartoon world: a bright sky, thick ink outlines and hard drop shadows.
  * Blocks are painted as solid colour tiles with a darker inner edge, so a
@@ -691,7 +691,13 @@ body.playing.is-tight #screen-game.is-active { gap: 5px; }
 .tile:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 0 0 var(--ink); }
 .tile__num { font-size: 22px; line-height: 1; }
 .tile__name { font-size: 10.5px; font-weight: 700; color: var(--ink-soft); text-align: center; }
-.tile__stars { color: var(--gold); font-size: 12px; letter-spacing: 1px; }
+.tile__stars { display: flex; gap: 2px; }
+.tile__stars i {
+  width: 11px; height: 11px;
+  background: var(--ink-faint);
+  clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+}
+.tile__stars i.is-on { background: var(--gold); }
 .tile__lock { font-size: 18px; opacity: .55; }
 .tile--done { background: #eef7ff; }
 .tile--locked {
@@ -880,6 +886,33 @@ body.cb-assist .cell__mark { display: block; opacity: .9; }
   pointer-events: none;
   z-index: 2;
 }
+
+/* The two rows above the line. Resting in the lower one costs a star, the
+   upper one two; the solid red edge on top is the real limit. */
+.arena__grace {
+  position: absolute;
+  left: 0; right: 0;
+  top: calc(var(--sky) - var(--cell) * 2);
+  height: calc(var(--cell) * 2);
+  display: flex;
+  flex-direction: column-reverse;
+  border-top: 3px solid rgba(232, 76, 96, .75);
+  pointer-events: none;
+  z-index: 1;
+}
+.arena__band {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: calc(var(--cell) * .18);
+  font-size: max(10px, calc(var(--cell) * .3));
+  line-height: 1;
+  letter-spacing: .05em;
+  color: rgba(43, 36, 64, .35);
+}
+.arena__band--2 { background: rgba(255, 196, 64, .14); }
+.arena__band--1 { background: rgba(232, 76, 96, .12); }
 
 /* The piece and ghost layers: one wrapper each, positioned by inline
    transform, blocks laid out inside using --r and --c. The wrapper carries
@@ -1237,6 +1270,27 @@ body.cb-assist .block__mark { display: block; opacity: .9; }
 .result__title--fail { color: var(--ink); text-shadow: 0 3px 0 rgba(255, 93, 143, .35); }
 @keyframes titlePop {
   from { opacity: 0; transform: translateY(10px) scale(.9); }
+  to   { opacity: 1; transform: none; }
+}
+
+.result__stars {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 4px 0 2px;
+}
+.result__stars .star {
+  width: 38px; height: 38px;
+  background: var(--ink-faint);
+  clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  animation: starPop .45s cubic-bezier(.2,.9,.3,1.5) both;
+}
+.result__stars .star.is-on { background: var(--gold); }
+.result__stars .star:nth-child(1) { animation-delay: .25s; }
+.result__stars .star:nth-child(2) { animation-delay: .38s; }
+.result__stars .star:nth-child(3) { animation-delay: .51s; }
+@keyframes starPop {
+  from { opacity: 0; transform: scale(.3) rotate(-30deg); }
   to   { opacity: 1; transform: none; }
 }
 .modal--result .modal__line {

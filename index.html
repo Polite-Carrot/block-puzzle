@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#79cbf2">
-<meta name="apple-mobile-web-app-title" content="Block Puzzle">
-<title>Block Puzzle</title>
+<meta name="apple-mobile-web-app-title" content="Color Block Fall">
+<title>Color Block Fall</title>
 <link rel="stylesheet" href="fonts.css">
 <link rel="stylesheet" href="styles.css">
 </head>
@@ -26,8 +26,8 @@
       <div class="masthead__mark" aria-hidden="true">
         <span style="--c:#f5423c"></span><span style="--c:#0ec3c6"></span><span style="--c:#9a53ef"></span>
       </div>
-      <h1>Block&nbsp;Puzzle</h1>
-      <p class="masthead__tag">Drop every piece under the line. One thousand puzzles, one solution each.</p>
+      <h1>Color&nbsp;Block Fall</h1>
+      <p class="masthead__tag">Drop every piece under the line. One thousand puzzles, every one solvable.</p>
     </header>
 
     <div class="choices">
@@ -188,9 +188,13 @@
         <svg class="result__mark" viewBox="0 0 24 24"><path d="M5 12.4l4.8 4.8L19 7"/></svg>
       </div>
       <h2 id="win-title" class="result__title result__title--win">Cleared!</h2>
+      <div id="win-stars" class="result__stars" role="img" aria-label="3 stars">
+        <span class="star"></span><span class="star"></span><span class="star"></span>
+      </div>
       <p class="modal__line" id="win-line">Every piece under the line.</p>
       <div class="modal__actions">
         <button id="win-next" class="btn btn--primary">Next</button>
+        <button id="win-undo" class="btn" hidden>Undo last piece</button>
         <button id="win-retry" class="btn">Try again</button>
         <button id="win-menu" class="btn btn--ghost">Menu</button>
       </div>
@@ -209,7 +213,8 @@
       <h2 id="fail-title" class="result__title result__title--fail">Level failed!</h2>
       <p class="modal__line" id="fail-line">A piece went above the line.</p>
       <div class="modal__actions">
-        <button id="fail-retry" class="btn btn--primary">Retry</button>
+        <button id="fail-undo" class="btn btn--primary">Undo last piece</button>
+        <button id="fail-retry" class="btn">Retry</button>
         <button id="fail-menu" class="btn btn--ghost">Menu</button>
       </div>
     </div>
@@ -226,7 +231,7 @@
         <li><b>Swipe down</b> (or hold the down arrow) to speed the fall while you decide.</li>
         <li><b>Undo</b> unlocks the last piece if you place it wrong. The brown ground at the bottom is the arena's landscape — each column has its own floor height, and pieces stack on top of it just as they do on each other.</li>
       </ol>
-      <p class="modal__line">Stars are for a clean run. Finish without undoing for three; a few undos still earn two; finishing at all earns one.</p>
+      <p class="modal__line">Every board packs perfectly up to the dashed line. Fit everything under it for three stars. Each row the pile rises above it costs a star, and passing the red line ends the level.</p>
       <div class="modal__actions"><button id="howto-close" class="btn btn--primary">Got it</button></div>
     </div>
   </div>

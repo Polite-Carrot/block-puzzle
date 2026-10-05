@@ -1,4 +1,4 @@
-# Block Puzzle
+# Color Block Fall
 
 A browser puzzle game about dropping Tetris-shaped blocks under a line. One
 hundred levels, hand-tuned to a rising curve; each is solvable and the
