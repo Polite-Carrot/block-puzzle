@@ -385,7 +385,9 @@
      underneath it shrinks. */
   if (window.ResizeObserver) {
     new ResizeObserver(function () {
-      if (state.game && fitBoard()) redraw();
+      /* A finished board is on screen behind the result modal; never rescale it. */
+      if (!state.game || state.game.won || state.game.lost) return;
+      if (fitBoard()) redraw();
     }).observe(document.querySelector('.board'));
   }
 

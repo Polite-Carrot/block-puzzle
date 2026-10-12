@@ -146,9 +146,8 @@
 
   ArenaView.prototype._paintPiece = function (container, shape, rot, colour, opts) {
     opts = opts || {};
-    /* Only the blocks are replaced. This runs every frame, and clearing the
-       whole layer would take the wind with it — restarting its animation on
-       each repaint, which leaves the streaks frozen on their first frame. */
+    /* Only the blocks are replaced; clearing the whole layer would take the
+       wind element with it. */
     this._clearBlocks(container);
     var geom = global.Shapes.cellsOf(shape, rot);
     container.style.setProperty('--pw', geom.cols);
@@ -213,12 +212,19 @@
       this._clearBlocks(this.ghostInner);
       this.wind.innerHTML = '';
       this._windKey = null;
+      this._pieceKey = null;
       return;
     }
-    this._paintPiece(this.pieceInner, pc.shape, game.currentRot, pc.colour);
-    this._paintWind(global.Shapes.cellsOf(pc.shape, game.currentRot),
-      pc.shape + ':' + game.currentRot);
-    this._paintPiece(this.ghostInner, pc.shape, game.currentRot, pc.colour, { ghost: true });
+    /* This runs every frame; the blocks only need building when the piece
+       itself changes. Every other frame is just a transform. */
+    var key = game.currentIdx + ':' + pc.shape + ':' + game.currentRot + ':' + pc.colour;
+    if (this._pieceKey !== key) {
+      this._pieceKey = key;
+      this._paintPiece(this.pieceInner, pc.shape, game.currentRot, pc.colour);
+      this._paintWind(global.Shapes.cellsOf(pc.shape, game.currentRot),
+        pc.shape + ':' + game.currentRot);
+      this._paintPiece(this.ghostInner, pc.shape, game.currentRot, pc.colour, { ghost: true });
+    }
     var landing = game.landingRow(game.currentRot, game.currentCol);
     this._placeLayer(this.piece, this.pieceInner,
       game.currentRow + (game.subrow || 0), game.currentCol);
@@ -269,6 +275,12 @@
   }
 
   QueueView.prototype.render = function (level, currentIdx) {
+    /* Once the queue runs dry the last slots stay where they are, just
+       invisible, so the shelf keeps its height and the arena above it is
+       not handed the space and rescaled mid-celebration. */
+    var done = currentIdx >= level.pieces.length;
+    this.mount.classList.toggle('queue--done', done);
+    if (done) return;
     this.mount.innerHTML = '';
     var shown = 0;
     for (var i = currentIdx; i < level.pieces.length && shown < 7; i++, shown++) {

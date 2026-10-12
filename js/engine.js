@@ -175,15 +175,15 @@
   };
 
   /* Where the piece would land if left alone — for the ghost and the hard
-     drop shortcut. Walks the piece down until it collides. */
+     drop shortcut. Walks down from where the piece is now: scanning from the
+     top instead would stop at an overhang a piece has already slid under. */
   Game.prototype.landingRow = function (rot, col) {
     var pc = this.currentPiece();
     if (!pc) return null;
     var geom = Shapes.cellsOf(pc.shape, rot);
     var total = this.sky + this.height;
     if (col < 0 || col + geom.cols > this.width) return null;
-    /* Start from the current piece's row (or above) and step down. */
-    var start = Math.min(this.currentRow, 0);
+    var start = this.currentRow;
     var last = null;
     for (var r = start; r <= total - geom.rows; r++) {
       var ok = true;
@@ -195,7 +195,7 @@
         if (rr < 0) continue;
         if (this.grid[rr][cc]) { ok = false; break; }
       }
-      if (ok) last = r; else if (last !== null) break;
+      if (ok) last = r; else break;
     }
     return last;
   };

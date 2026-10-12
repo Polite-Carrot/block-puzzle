@@ -1025,6 +1025,7 @@ body.cb-assist .block__mark { display: block; opacity: .9; }
   scrollbar-width: none;
 }
 .queue::-webkit-scrollbar { display: none; }
+.queue--done { visibility: hidden; }
 
 .queue__slot {
   --qcell: 14px;
