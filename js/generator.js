@@ -21,16 +21,14 @@
 
   var COLOURS = ['red', 'blue', 'teal', 'purple', 'green', 'orange', 'yellow', 'magenta', 'white'];
 
-  var POOL_TINY    = ['dom', 'tri_i', 'tri_l', 'tet_o', 'tet_l', 'tet_j'];
-  var POOL_SMALL   = ['dom', 'tri_l', 'tet_o', 'tet_l', 'tet_j', 'tet_t', 'tet_i', 'tet_s', 'tet_z'];
-  var POOL_MID     = ['dom', 'tet_o', 'tet_l', 'tet_j', 'tet_t', 'tet_i', 'tet_s', 'tet_z',
-                      'pen_p', 'pen_q', 'pen_l', 'pen_j', 'pen_u', 'pen_y', 'pen_y2'];
-  var POOL_LARGE   = ['dom', 'tet_l', 'tet_j', 'tet_t', 'tet_i', 'tet_s', 'tet_z',
-                      'pen_p', 'pen_q', 'pen_l', 'pen_j', 'pen_u', 'pen_y', 'pen_y2',
-                      'pen_t', 'pen_v', 'pen_w', 'pen_z', 'pen_s', 'pen_n', 'pen_n2'];
-  var POOL_HARDEST = ['dom', 'tet_s', 'tet_z', 'tet_t', 'tet_l', 'tet_j',
-                      'pen_p', 'pen_q', 'pen_l', 'pen_j', 'pen_u', 'pen_y', 'pen_y2',
-                      'pen_t', 'pen_v', 'pen_w', 'pen_z', 'pen_s', 'pen_n', 'pen_n2'];
+  /* Only the seven four-block pieces. Early pools hold back T, S and Z, which
+     are the hardest to place. */
+  var POOL_FULL       = ['tet_i', 'tet_o', 'tet_t', 'tet_s', 'tet_z', 'tet_l', 'tet_j'];
+  var POOL_TINY    = ['tet_o', 'tet_i', 'tet_l', 'tet_j'];
+  var POOL_SMALL   = ['tet_o', 'tet_i', 'tet_l', 'tet_j', 'tet_t'];
+  var POOL_MID     = POOL_FULL;
+  var POOL_LARGE   = POOL_FULL;
+  var POOL_HARDEST = POOL_FULL;
 
   /* mulberry32 — small, fast, deterministic. */
   function rng(seed) {
@@ -187,29 +185,78 @@
 
   function makeTerrain(w, h, maxRise, rand) {
     if (maxRise <= 0) return [];
-    var cells = [];
-    var rise = Math.max(1, maxRise - Math.floor(rand() * 2));
-    var heights = [];
-    for (var c = 0; c < w; c++) {
-      var roll = rand();
-      var delta = roll < 0.25 ? -1 : roll < 0.55 ? 0 : 1;
-      rise = Math.max(0, Math.min(maxRise, rise + delta));
-      heights.push(rise);
+    /* A walk clamped at its limits stalls there and often comes out flat, so
+       it bounces off them instead, and a floor that is still too even is
+       re-rolled. Wide shallow floors want at least one step; deeper ones two. */
+    var wantRange = Math.min(maxRise, 2);
+    var heights = null;
+    for (var attempt = 0; attempt < 12; attempt++) {
+      var rise = Math.floor(rand() * (maxRise + 1));
+      var walk = [];
+      for (var c = 0; c < w; c++) {
+        var roll = rand();
+        var delta = roll < 0.35 ? -1 : roll < 0.65 ? 0 : 1;
+        if (rise + delta > maxRise || rise + delta < 0) delta = -delta;
+        rise += delta;
+        walk.push(rise);
+      }
+      heights = walk;
+      if (Math.max.apply(null, walk) - Math.min.apply(null, walk) >= wantRange) break;
     }
     /* Drop the whole floor until its shallowest column reaches the bottom.
        Zeroing just that one column instead would cut a cliff into an
        otherwise gentle floor — on a high floor that leaves a one-wide shaft
        several rows deep, hanging below the arena like a hole in it. Shifting
        the lot keeps every step between neighbours at one row. */
-    var lowest = heights[0];
-    for (var k = 1; k < heights.length; k++) if (heights[k] < lowest) lowest = heights[k];
-    if (lowest > 0) for (var j = 0; j < heights.length; j++) heights[j] -= lowest;
+    var lowest = Math.min.apply(null, heights);
+    for (var j = 0; j < heights.length; j++) heights[j] -= lowest;
+    /* Last resort for a floor that never varied: a raised shelf. */
+    if (Math.max.apply(null, heights) === 0) {
+      var span = 1 + Math.floor(rand() * (w - 1));
+      var from = Math.floor(rand() * (w - span + 1));
+      for (var s = from; s < from + span; s++) heights[s] = 1;
+    }
+    var cells = [];
     for (var col = 0; col < w; col++) {
       for (var d = 0; d < heights[col]; d++) {
         cells.push({ row: h - 1 - d, col: col });
       }
     }
     return cells;
+  }
+
+  function isFlat(obstacles, w) {
+    var heights = new Array(w).fill(0);
+    for (var i = 0; i < obstacles.length; i++) heights[obstacles[i].col]++;
+    for (var c = 1; c < w; c++) if (heights[c] !== heights[0]) return false;
+    return true;
+  }
+
+  /* Every piece is four cells, so the open area must be a multiple of four or
+     no tiling exists. Raising the lowest columns by one keeps the floor gentle. */
+  function padToFours(obstacles, w, h) {
+    var need = (w * h - obstacles.length) % 4;
+    if (!need) return obstacles;
+    var heights = new Array(w).fill(0);
+    for (var i = 0; i < obstacles.length; i++) heights[obstacles[i].col]++;
+    var order = heights.map(function (v, c) { return c; })
+      .sort(function (a, b) { return heights[a] - heights[b] || a - b; });
+    var out = obstacles.slice();
+    for (var k = 0; k < need; k++) {
+      var col = order[k];
+      out.push({ row: h - 1 - heights[col], col: col });
+    }
+    /* Topping up the lowest columns can level the floor off; trimming the
+       tallest ones reaches the next multiple of four instead. */
+    var trim = 4 - need;
+    if (isFlat(out, w) && obstacles.length >= trim) {
+      var tallest = order.slice().reverse().slice(0, trim);
+      var cut = obstacles.filter(function (o) {
+        return !(tallest.indexOf(o.col) >= 0 && o.row === h - heights[o.col]);
+      });
+      if (!isFlat(cut, w)) return cut;
+    }
+    return out;
   }
 
   /* ── colouring ─────────────────────────────────────────────────────── */
@@ -255,51 +302,45 @@
 
   /* ── params: campaign and random ──────────────────────────────────── */
 
-  /* Campaign — deterministic curve. One thousand levels, dealt into five
-     pool tiers so the vocabulary of shapes grows steadily; width and height
-     rise almost linearly with the level number so the arena keeps widening
-     into the hundreds; terrain and fall speed climb in parallel. */
+  /* Campaign — deterministic curve. `ramp` carries the climb to level ~300,
+     where boards are properly tricky; `tail` adds a last notch of size and
+     terrain from there to level 1000. */
   var CAMPAIGN_LEVELS = 1000;
+  var MAX_HEIGHT = 10;
   function campaignParams(level) {
     var idx = Math.max(0, level - 6);
-    var t = idx / (CAMPAIGN_LEVELS - 6);   /* 0 at level 6, 1 at level 1000 */
-    /* Two ramps rather than one. A single curve stretched over a thousand
-       levels leaves the opening fifty barely distinguishable from each other;
-       `early` does most of its growing in the first sixty levels, and `late`
-       takes over for the long climb after that. */
-    var early = Math.min(1, Math.sqrt(idx / 60));
-    var late  = Math.max(0, (idx - 60) / (CAMPAIGN_LEVELS - 66));
-    var wBase = 4 + Math.round(early * 3) + Math.round(late * 1);   /* 4 → 7 → 8 */
-    var hBase = 4 + Math.round(early * 5) + Math.round(late * 3);   /* 4 → 9 → 12 */
-    var wOff  = [0, 1, 0, -1, 1, 2][level % 6];
-    var hOff  = [1, 0, 2, 1, -1, 1, 2][level % 7];
-    var w = Math.max(4, Math.min(8, wBase + wOff));
-    var h = Math.max(4, Math.min(12, hBase + hOff));
-    /* Terrain from the twenties, jagged by the eighties. */
-    var terrainMax = Math.min(5, Math.floor(h / 2), Math.floor(idx / 16));
-    /* Five-cell pieces arrive at level 10, once the taught levels are done. */
-    var pool = idx < 4   ? POOL_TINY :
-               idx < 24  ? POOL_MID :
-               idx < 150 ? POOL_LARGE : POOL_HARDEST;
-    var palette   = Math.min(9, 3 + Math.round(early * 3) + Math.round(late * 3));
-    var fallSpeed = 0.35 + early * 0.25 + late * 0.3;   /* 0.35 → 0.6 → 0.9 */
+    var ramp = Math.min(1, idx / 300);
+    var tail = Math.max(0, (idx - 300) / (CAMPAIGN_LEVELS - 306));
+    var wBase = 4 + Math.round(ramp * 3) + Math.round(tail * 1);   /* 4 → 7 → 8 */
+    var hBase = 4 + Math.round(ramp * 4) + Math.round(tail * 2);   /* 4 → 8 → 10 */
+    var wOff  = [0, 1, 0, -1, 1, 0][level % 6];
+    var hOff  = [1, 0, 1, 0, -1, 0, 1][level % 7];
+    /* Once the floor is shaped, 4-wide or 4-tall boards leave too few ways to
+       fill them, so they start at 5x5. */
+    var minSide = level < 9 ? 4 : 5;
+    var w = Math.max(minSide, Math.min(8, wBase + wOff));
+    var h = Math.max(minSide, Math.min(MAX_HEIGHT, hBase + hOff));
+    var terrainMax = level < 9 ? 0 :
+      Math.min(Math.floor(h / 2), Math.max(1, Math.round(ramp * 2) + Math.round(tail * 2)));
+    var pool = idx < 6  ? POOL_TINY :
+               idx < 30 ? POOL_SMALL : POOL_FULL;
+    var palette   = Math.min(9, 3 + Math.round(ramp * 3) + Math.round(tail * 2));
+    var fallSpeed = 0.35 + ramp * 0.25 + tail * 0.2;   /* 0.35 → 0.6 → 0.8 */
     return { w: w, h: h, terrainMax: terrainMax, pool: pool, palette: palette, fallSpeed: fallSpeed };
   }
 
-  /* Random — five settings the player picks with a slider. Sizes and pools
-     are the same shapes the campaign uses, just quantised into readable
-     "easy" through "extra hard" tiers. */
+  /* Random — five settings the player picks with a slider. */
   var RANDOM_TIERS = [
-    { name: 'Easy',       blurb: 'Small boards, big pieces, no terrain — a quiet warm-up.',
-      w: 4, h: 5, terrainMax: 0, pool: POOL_SMALL, palette: 4, fallSpeed: 0.4 },
-    { name: 'Normal',     blurb: 'Every tetromino, a little terrain, and just enough shape variety.',
-      w: 5, h: 6, terrainMax: 1, pool: POOL_MID,   palette: 5, fallSpeed: 0.5 },
-    { name: 'Hard',       blurb: 'Pentominoes in the mix and a real landscape to fit them around.',
-      w: 6, h: 8, terrainMax: 2, pool: POOL_LARGE, palette: 6, fallSpeed: 0.6 },
-    { name: 'Expert',     blurb: 'A wide board of pentominoes and a jagged ground — plan two moves ahead.',
-      w: 7, h: 9, terrainMax: 3, pool: POOL_LARGE, palette: 7, fallSpeed: 0.7 },
-    { name: 'Extra Hard', blurb: 'Eight columns of pentominoes, deep terrain, and a fall that will not wait.',
-      w: 8, h: 11, terrainMax: 4, pool: POOL_HARDEST, palette: 8, fallSpeed: 0.8 }
+    { name: 'Easy',       blurb: 'Small boards, friendly shapes and a gentle floor — a quiet warm-up.',
+      w: 5, h: 5, terrainMax: 1, pool: POOL_SMALL, palette: 4, fallSpeed: 0.4 },
+    { name: 'Normal',     blurb: 'All seven block shapes and a little uneven ground.',
+      w: 5, h: 6, terrainMax: 1, pool: POOL_FULL, palette: 5, fallSpeed: 0.5 },
+    { name: 'Hard',       blurb: 'A taller board with every shape and some ground to build around.',
+      w: 6, h: 8, terrainMax: 1, pool: POOL_FULL, palette: 6, fallSpeed: 0.55 },
+    { name: 'Expert',     blurb: 'A wide board over bumpy ground — plan two moves ahead.',
+      w: 7, h: 9, terrainMax: 2, pool: POOL_FULL, palette: 7, fallSpeed: 0.65 },
+    { name: 'Extra Hard', blurb: 'Eight columns, deep terrain, and a fall that will not wait.',
+      w: 8, h: MAX_HEIGHT, terrainMax: 3, pool: POOL_FULL, palette: 8, fallSpeed: 0.75 }
   ];
 
   /* ── counting the ways a level can be solved ──────────────────────── */
@@ -411,10 +452,16 @@
 
   function buildFromParams(params, seed, kind) {
     var palette = COLOURS.slice(0, params.palette);
+    /* A one-row floor on a four-wide board cannot be both uneven and a
+       multiple of four cells, so narrow boards get a second row to work with. */
+    var rise = params.terrainMax > 0 && params.w <= 4
+      ? Math.min(Math.floor(params.h / 2), Math.max(2, params.terrainMax))
+      : params.terrainMax;
     var best = null, bestCount = 0;
     for (var attempt = 0; attempt < 80; attempt++) {
       var rand = rng(seed + attempt * 17);
-      var obstacles = makeTerrain(params.w, params.h, params.terrainMax, rand);
+      var obstacles = padToFours(makeTerrain(params.w, params.h, rise, rand), params.w, params.h);
+      if (rise > 0 && isFlat(obstacles, params.w)) continue;
       var solution = tileArena(params.w, params.h, obstacles, params.pool, rand, 3000);
       if (!solution) continue;
       var colours = colourPieces(solution, palette, rand);

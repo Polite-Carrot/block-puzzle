@@ -20,7 +20,7 @@
     tri_l: [[1, 0],
             [1, 1]],
 
-    /* tetrominoes — the seven Tetris pieces */
+    /* tetrominoes — the seven four-block pieces */
     tet_i: [[1, 1, 1, 1]],
     tet_o: [[1, 1],
             [1, 1]],

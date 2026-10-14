@@ -16,7 +16,7 @@ export default defineConfig({
     {
       name: "mobile-chrome",
       // INFO: set the device here
-      use: { ...devices["Desktop Chrome"], channel: "chrome" },
+      use: { ...devices["Pixel 10 Pro"], channel: "chrome" },
     },
   ],
   webServer: {

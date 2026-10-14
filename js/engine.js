@@ -7,7 +7,7 @@
  * with any cell above the ceiling has poked through — the level cannot be
  * finished from that position, and the player must undo.
  *
- * Play is Tetris-like: the current piece is always at some (row, col, rot)
+ * Play is a classic falling-block game: the current piece is always at some (row, col, rot)
  * and always falling. Every tick advances it down; the player can shift
  * left or right, rotate, or soft-drop into an overhang. The piece locks
  * the moment it can no longer fall by one row; there is no "place" button
@@ -140,7 +140,7 @@
     return moved;
   };
 
-  /* Rotate clockwise. Standard Tetris wall-kicks: if the next rotation
+  /* Rotate clockwise. Standard wall-kicks: if the next rotation
      collides, try shifting it one and two cells left or right so a piece up
      against a wall can still turn. */
   Game.prototype.tryRotate = function () {

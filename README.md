@@ -1,6 +1,6 @@
 # Color Block Fall
 
-A browser puzzle game about dropping Tetris-shaped blocks under a line. One
+A browser puzzle game about dropping four-block shapes under a line. One
 hundred levels, hand-tuned to a rising curve; each is solvable and the
 generator only keeps a deal that survives replay.
 

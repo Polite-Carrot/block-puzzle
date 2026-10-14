@@ -107,14 +107,13 @@ const TEACH = [
   },
   {
     name: 'Choose a Column',
-    brief: 'Two squares along the bottom, two dominos on top. Every cell fills.',
+    brief: 'Two squares along the bottom, then a long bar across the top. Every cell fills.',
     width: 4, height: 3, obstacles: [],
     fallSpeed: 0.32,
     pieces: [
       { shape: 'tet_o', colour: 'red',    rot: 0, col: 0, top: 9 },
       { shape: 'tet_o', colour: 'blue',   rot: 0, col: 2, top: 9 },
-      { shape: 'dom',   colour: 'teal',   rot: 0, col: 0, top: 8 },
-      { shape: 'dom',   colour: 'purple', rot: 0, col: 2, top: 8 }
+      { shape: 'tet_i', colour: 'teal',   rot: 0, col: 0, top: 8 }
     ]
   },
   {
@@ -132,14 +131,12 @@ const TEACH = [
     name: 'Uneven Ground',
     brief: 'The floor is not flat — some columns start higher than others. Fit the pieces to the shape of the ground.',
     width: 4, height: 4,
-    obstacles: [{ row: 3, col: 0 }, { row: 3, col: 3 }],
+    obstacles: [{ row: 3, col: 0 }, { row: 2, col: 0 }, { row: 3, col: 3 }, { row: 2, col: 3 }],
     fallSpeed: 0.32,
     pieces: [
-      { shape: 'dom',   colour: 'red',    rot: 0, col: 1, top: 11 },
-      { shape: 'tet_o', colour: 'blue',   rot: 0, col: 0, top: 9 },
-      { shape: 'tet_o', colour: 'teal',   rot: 0, col: 2, top: 9 },
-      { shape: 'dom',   colour: 'purple', rot: 0, col: 0, top: 8 },
-      { shape: 'dom',   colour: 'green',  rot: 0, col: 2, top: 8 }
+      { shape: 'tet_o', colour: 'red',    rot: 0, col: 1, top: 10 },
+      { shape: 'tet_i', colour: 'blue',   rot: 0, col: 0, top: 9 },
+      { shape: 'tet_i', colour: 'teal',   rot: 0, col: 0, top: 8 }
     ]
   },
   {
