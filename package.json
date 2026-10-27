@@ -7,7 +7,9 @@
     "levels": "node make-levels.js",
     "web:sync": "node sync-web.js",
     "sync": "node sync-web.js && cap sync",
-    "build:standalone": "node build.js --standalone"
+    "build:standalone": "node build.js --standalone",
+    "playwright": "playwright",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@capacitor-firebase/analytics": "^8.5.1",
