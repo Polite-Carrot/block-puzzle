@@ -417,6 +417,20 @@ body.playing.is-tight #screen-game.is-active { gap: 5px; }
   gap: 10px;
   flex-wrap: wrap;
 }
+#home-remove-ads[hidden] { display: none; }
+#home-remove-ads .ra-short { display: none; }
+/* On a short phone a third footer button wraps below the fold, so keep one
+   row there: smaller buttons, and "No ads" for "Remove ads". */
+@media (max-height: 760px) and (max-width: 560px) {
+  #screen-home .menu-foot { flex-wrap: nowrap; gap: 8px; }
+  #screen-home .menu-foot .btn { font-size: 14px; padding: 9px 12px; white-space: nowrap; }
+  #home-remove-ads .ra-long { display: none; }
+  #home-remove-ads .ra-short { display: inline; }
+}
+@media (max-height: 760px) and (max-width: 340px) {
+  #screen-home .menu-foot { gap: 6px; }
+  #screen-home .menu-foot .btn { font-size: 13px; padding: 8px 9px; }
+}
 
 /* ───────── subhead (levels, game) ───────── */
 
@@ -636,28 +650,8 @@ body.playing.is-tight #screen-game.is-active { gap: 5px; }
 
 /* ───────── level grid ───────── */
 
-.level-pager {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 0 0 12px;
-  font-family: "Baloo 2", sans-serif;
-}
-.pager__label {
-  font-weight: 800;
-  font-size: 16px;
-  color: var(--ink);
-  letter-spacing: 0.02em;
-}
-.btn--pager {
-  min-width: 52px;
-  padding: 6px 14px;
-  font-size: 18px;
-  font-weight: 800;
-}
-
 .level-grid {
+  position: relative;   /* offsetParent for showLevels() scrolling */
   list-style: none;
   margin: 0;
   padding: 0;
@@ -1352,6 +1346,20 @@ body.cb-assist .block__mark { display: block; opacity: .9; }
   border-top: 1px solid var(--ink-faint);
 }
 .settings-row:first-child { border-top: 0; }
+/* display:flex beats the browser's own [hidden] rule. */
+.settings-row[hidden] { display: none; }
+
+/* A line of explanation under a switch the OS has overruled. It belongs to the
+   row above, so no divider of its own. Two classes, to beat .settings-row. */
+.settings-row.settings-row--quiet {
+  border-top: 0;
+  padding: 0 0 8px;
+  margin-top: -6px;
+}
+.settings-row--quiet[hidden] { display: none; }
+
+/* The price button keeps its colour; pressed-state gold is for toggles. */
+.settings-row .btn--primary:disabled { opacity: .6; }
 
 /* Set after .settings-row, whose border shorthand would otherwise reset the
    colour. */
@@ -1401,6 +1409,7 @@ body.cb-assist .block__mark { display: block; opacity: .9; }
 /* Rows in the privacy dialogs stack a title, a small note, and a toggle, so a
    two-line description is not clipped by the default label/toggle row. */
 .settings-row--stack { align-items: flex-start; }
+#settings-remove-ads-row { align-items: center; }
 .settings-row--stack > div {
   flex: 1 1 auto;
   min-width: 0;

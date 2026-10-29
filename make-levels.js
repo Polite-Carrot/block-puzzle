@@ -448,12 +448,29 @@ for (let i = 0; i < TEACH.length; i++) {
 }
 
 const TOTAL_LEVELS = 1000;
+/* A board is its size plus its floor. No two levels may share one, so a deal
+   that repeats an earlier board is thrown back for a fresh seed. */
+function boardKey(level) {
+  const heights = new Array(level.width).fill(0);
+  for (const o of level.obstacles) heights[o.col]++;
+  return level.width + 'x' + level.height + ':' + heights.join('');
+}
+const seen = new Set(levels.map(boardKey));
+let rerolled = 0;
 for (let i = TEACH.length + 1; i <= TOTAL_LEVELS; i++) {
-  const seed = 90210 + i * 137;
-  const level = Generator.buildCampaignLevel(i, seed);
+  let level = null;
+  for (let bump = 0; bump < 40; bump++) {
+    const seed = 90210 + i * 137 + bump * 100003;
+    /* Every few re-deals, let the size shift too: a small board can run out of floors. */
+    level = Generator.buildCampaignLevel(i, seed, Math.floor(bump / 4));
+    if (!seen.has(boardKey(level))) break;
+    rerolled++;
+  }
+  seen.add(boardKey(level));
   levels.push(level);
   if (i % 100 === 0) console.log('  tiled ' + i + ' / ' + TOTAL_LEVELS);
 }
+console.log('  re-dealt ' + rerolled + ' boards that repeated an earlier level');
 
 /* ── emit ──────────────────────────────────────────────────────────────── */
 

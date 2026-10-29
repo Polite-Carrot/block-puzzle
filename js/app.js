@@ -1,7 +1,7 @@
 /* app.js — screens, progress, and every input the player has.
  *
  * Three ways into a puzzle:
- *   Campaign     — a fixed hundred-level curve (in js/levels.js).
+ *   Campaign     — a fixed thousand-level curve (in js/levels.js).
  *   Daily        — one puzzle a day, seeded from the calendar.
  *   Random       — pick a difficulty, hit Deal — a fresh solvable board.
  *
@@ -35,7 +35,7 @@
     game: null,
     /* Which mode we are playing — 'campaign', 'daily' or 'random'. */
     mode: 'campaign',
-    /* Campaign 1..100. Random and daily use `seed` instead. */
+    /* Campaign 1..1000. Random and daily use `seed` instead. */
     levelIndex: 0,
     /* Random difficulty 0..4; Daily uses a fixed tier below. */
     difficulty: 1,
@@ -131,26 +131,11 @@
     }
   }
 
-  var PAGE_SIZE = 100;
-  var pagerPage = 0;
-  function pageCount() { return Math.ceil(LEVELS.length / PAGE_SIZE); }
-  function clampPagerToUnlocked() {
-    /* Open on the page containing the furthest unlocked level so a returning
-       player is not made to page forward a dozen times. */
-    var u = highestUnlocked();
-    pagerPage = Math.max(0, Math.min(pageCount() - 1, Math.floor((u - 1) / PAGE_SIZE)));
-  }
   function renderLevelGrid() {
     var grid = $('level-grid');
     grid.innerHTML = '';
     var unlocked = highestUnlocked();
-    var pages = pageCount();
-    if (pagerPage >= pages) pagerPage = pages - 1;
-    if (pagerPage < 0) pagerPage = 0;
-    var start = pagerPage * PAGE_SIZE;
-    var end   = Math.min(start + PAGE_SIZE, LEVELS.length);
-    for (var i = start; i < end; i++) {
-      var idx = i + 1;
+    for (var idx = 1; idx <= LEVELS.length; idx++) {
       var li = UI.el('li', 'level-item', grid);
       var btn = UI.el('button', 'tile', li);
       btn.type = 'button';
@@ -172,16 +157,15 @@
         return function () { startCampaignLevel(n); };
       })(idx));
     }
-    var label = $('pager-label');
-    if (label) label.textContent = 'Levels ' + (start + 1) + '\u2013' + end;
-    var prev = $('pager-prev');
-    var next = $('pager-next');
-    if (prev) prev.disabled = pagerPage <= 0;
-    if (next) next.disabled = pagerPage >= pages - 1;
-    /* Scroll back to the top of the grid on page change so the layout looks
-       like a fresh screen rather than jumping the player mid-list. */
-    var scroller = grid.parentElement;
-    if (scroller && scroller.scrollTo) scroller.scrollTo(0, 0);
+  }
+
+  /* Opens the list centred on `level` rather than at the top of a thousand. */
+  function showLevels(level) {
+    renderLevelGrid();
+    showScreen('screen-levels');
+    var grid = $('level-grid');
+    var item = grid.children[level - 1];
+    if (item) grid.scrollTop = item.offsetTop - (grid.clientHeight - item.offsetHeight) / 2;
   }
 
   function renderDaily() {
@@ -535,6 +519,10 @@
   }
 
   function onKey(ev) {
+    if (!$('reminder-offer').hidden) {
+      if (ev.key === 'Escape') closeReminderOffer();
+      return;
+    }
     if (!state.game) return;
     if (document.querySelector('.overlay:not([hidden])')) return;
     switch (ev.key) {
@@ -717,6 +705,10 @@
     } else if (state.mode === 'daily') {
       state.dailyState[state.seed] = 'won';
       saveJSON(DAILY_KEY, state.dailyState);
+      if (window.Reminders) window.Reminders.sync(dailyDone());
+    } else if (state.mode === 'random') {
+      state.randomState.won = (state.randomState.won || 0) + 1;
+      saveJSON(RANDOM_KEY, state.randomState);
     }
     if (window.Ads && !state.adNoted) { window.Ads.noteLevelComplete(); state.adNoted = true; }
     var used = state.game.level.pieces
@@ -791,15 +783,7 @@
     noteQuit();
     state.game = null;
     if (state.mode === 'campaign') {
-      /* Jump to the page containing the level we just came from so the same
-         tile is right there — the pager stays "sticky" to context. */
-      if (state.levelIndex >= 1) {
-        pagerPage = Math.floor((state.levelIndex - 1) / PAGE_SIZE);
-      } else {
-        clampPagerToUnlocked();
-      }
-      renderLevelGrid();
-      showScreen('screen-levels');
+      showLevels(state.levelIndex >= 1 ? state.levelIndex : highestUnlocked());
     } else if (state.mode === 'daily') {
       renderDaily();
       showScreen('screen-daily');
@@ -825,6 +809,7 @@
       } else {
         backToMenu();
       }
+      maybeOfferReminder();
     });
   }
 
@@ -834,9 +819,7 @@
     $('go-campaign').addEventListener('click', function () {
       state.mode = 'campaign';
       track('mode_selected', { mode: 'campaign' });
-      clampPagerToUnlocked();
-      renderLevelGrid();
-      showScreen('screen-levels');
+      showLevels(highestUnlocked());
     });
     $('go-daily').addEventListener('click', function () {
       state.mode = 'daily';
@@ -854,13 +837,6 @@
     $('levels-back').addEventListener('click', function () { renderHome(); showScreen('screen-home'); });
     $('daily-back').addEventListener('click', function () { renderHome(); showScreen('screen-home'); });
     $('random-back').addEventListener('click', function () { renderHome(); showScreen('screen-home'); });
-
-    $('pager-prev').addEventListener('click', function () {
-      if (pagerPage > 0) { pagerPage--; renderLevelGrid(); }
-    });
-    $('pager-next').addEventListener('click', function () {
-      if (pagerPage < pageCount() - 1) { pagerPage++; renderLevelGrid(); }
-    });
 
     $('cal-prev').addEventListener('click', function () { stepMonth(-1); });
     $('cal-next').addEventListener('click', function () { stepMonth(1); });
@@ -900,7 +876,7 @@
     });
     $('win-menu').addEventListener('click', function () {
       var afterAd = window.Ads ? window.Ads.maybeShowInterstitial() : Promise.resolve();
-      afterAd.then(goCampaign);
+      afterAd.then(function () { goCampaign(); maybeOfferReminder(); });
     });
     $('fail-retry').addEventListener('click', function () {
       $('fail-overlay').hidden = true;
@@ -1100,6 +1076,7 @@
   function openSettings() {
     updateSettingsUI();
     $('settings-modal').hidden = false;
+    checkReminderPermission();
   }
   function updateSettingsUI() {
     var s = $('settings-sound');
@@ -1112,6 +1089,8 @@
     if (a) setToggleBtn(a, state.prefs.analytics === true);
     var ads = $('privacy-data-ads');
     if (ads) setToggleBtn(ads, state.prefs.personalizedAds === true);
+    renderReminderRows();
+    renderPurchaseRows();
   }
 
   /* Publishes the current consent state to Track and to Ads. The ads flag is
@@ -1151,8 +1130,11 @@
      who never sees it fails the build under Guideline 2.1. */
   async function primeConsent() {
     var Ads = window.Ads;
-    if (!Ads || !Ads.isNative || !Ads.isNative()) return;
-    var attPromise = Ads.getPlatform() === 'ios' ? Ads.ensureAtt(true) : Promise.resolve();
+    var native = !!(Ads && Ads.isNative && Ads.isNative());
+    var attPromise = native && Ads.getPlatform() === 'ios' ? Ads.ensureAtt(true) : Promise.resolve();
+    /* iOS shows one system prompt at a time, so notifications wait for the tracking answer. */
+    attPromise.catch(function () {}).then(askForNotifications).catch(function () {});
+    if (!native) return;
     try { await Ads.init(); } catch (e) {}
     var attStatus = null;
     try { attStatus = await attPromise; } catch (e) {}
@@ -1208,6 +1190,287 @@
     })(0);
   }
 
+  /* ───────── daily reminders (js/reminders.js) ───────── */
+
+  /* Solved dailies keyed the way Reminders reads them (YYYY-MM-DD). This game
+     records them against the calendar id instead, e.g. 20261028. */
+  function dailyDone() {
+    var out = {};
+    for (var k in state.dailyState) {
+      if (state.dailyState[k] !== 'won') continue;
+      var s = String(k);
+      out[s.slice(0, 4) + '-' + s.slice(4, 6) + '-' + s.slice(6, 8)] = true;
+    }
+    return out;
+  }
+
+  /* First run only: the OS remembers the answer, and the Settings switch handles a change of mind. */
+  function askForNotifications() {
+    var R = window.Reminders;
+    if (!R || !R.available() || R.state().asked) return;
+    return R.enable(dailyDone()).then(function (result) {
+      if (result === 'on') track('daily_reminder', { on: true, hour: R.state().hour, from: 'first_run' });
+      renderReminderRows();
+    });
+  }
+
+  function hourLabel(h) {
+    var suffix = h < 12 ? 'am' : 'pm';
+    var n = h % 12 === 0 ? 12 : h % 12;
+    return n + suffix;
+  }
+
+  function renderReminderRows() {
+    var R = window.Reminders;
+    var row = $('settings-reminder-row');
+    if (!row) return;
+    var show = !!(R && R.available());
+    row.hidden = !show;
+    if (show) setToggleBtn($('settings-reminder'), R.state().on);
+  }
+
+  var REMINDER_BLOCKED = 'Notifications are turned off for this game. Allow them in your phone\'s Settings app, then switch this on.';
+
+  function showReminderBlocked(blocked) {
+    $('settings-reminder-note').textContent = blocked ? REMINDER_BLOCKED : '';
+    $('settings-reminder-note-row').hidden = !blocked;
+  }
+
+  /* The system setting can change while the game is closed. If it was turned
+     off there, say so next to the switch instead of showing "On" for
+     reminders that cannot arrive. */
+  function checkReminderPermission() {
+    var R = window.Reminders;
+    if (!R || !R.available()) return;
+    R.permission().then(function (p) {
+      showReminderBlocked(p === 'denied');
+    });
+  }
+
+  /* Set while the phone's Settings is open from the switch, so coming back
+     with notifications allowed finishes switching it on. */
+  var reminderFromSettings = false;
+
+  async function finishReminderFromSettings() {
+    reminderFromSettings = false;
+    var R = window.Reminders;
+    if ((await R.permission()) !== 'granted') return;
+    var result = await R.enable(dailyDone());
+    showReminderBlocked(result !== 'on');
+    if (result === 'on') track('daily_reminder', { on: true, hour: R.state().hour, from: 'settings' });
+    renderReminderRows();
+  }
+
+  async function toggleReminder() {
+    var R = window.Reminders;
+    if (!R) return;
+    var btn = $('settings-reminder');
+    btn.disabled = true;
+    try {
+      if (R.state().on) {
+        await R.disable();
+        track('daily_reminder', { on: false });
+      } else {
+        var result = await R.enable(dailyDone());
+        if (result === 'blocked') {
+          reminderFromSettings = true;
+          R.openSettings();
+        }
+        showReminderBlocked(result === 'denied' || result === 'blocked');
+        if (result === 'on') track('daily_reminder', { on: true, hour: R.state().hour });
+      }
+    } finally {
+      btn.disabled = false;
+      renderReminderRows();
+    }
+  }
+
+  /* Every puzzle finished, in any mode. */
+  var REMINDER_AFTER_LEVELS = 10;
+  function levelsCompleted() {
+    var n = 0;
+    for (var k in state.progress.completed) if (state.progress.completed[k]) n++;
+    for (var d in state.dailyState) if (state.dailyState[d] === 'won') n++;
+    return n + (state.randomState.won || 0);
+  }
+
+  /* Offered once per install, at whichever comes first: the first solved
+     daily, or ten puzzles finished anywhere. Never at launch: the system
+     prompt appears once per install, and spending it before the player
+     cares wastes it. */
+  async function maybeOfferReminder() {
+    var R = window.Reminders;
+    var daily = state.mode === 'daily';
+    if (!daily && levelsCompleted() < REMINDER_AFTER_LEVELS) return;
+    if (!R || !(await R.shouldOffer())) return;
+    if (!$('settings-modal').hidden || !$('overlay').hidden) return;
+    R.markOffered();
+    var lead = $('reminder-offer-lead');
+    lead.hidden = daily;
+    lead.textContent = daily ? '' : levelsCompleted() + ' puzzles solved, nice work! There is also a new Daily Puzzle every day.';
+    $('reminder-offer-time').textContent = hourLabel(R.state().hour);
+    $('reminder-offer').hidden = false;
+    $('reminder-offer-yes').focus();
+    track('reminder_offer', { from: daily ? 'daily' : 'levels' });
+  }
+
+  function closeReminderOffer() {
+    $('reminder-offer').hidden = true;
+  }
+
+  /* ───────── Remove Ads (js/purchases.js) ───────── */
+
+  var REMOVE_ADS_NOTE = 'Pay once, no more ads. Stays removed if you reinstall or change phone.';
+
+  function renderPurchaseRows(message) {
+    var P = window.Purchases;
+    var row = $('settings-remove-ads-row');
+    if (!row) return;
+    var show = !!(P && P.available());
+    row.hidden = !show;
+    $('settings-restore-row').hidden = !show;
+    var adsNote = $('privacy-data-ads-note');
+    var adsBtn = $('privacy-data-ads');
+    var removed = !!(P && P.adsRemoved());
+    if (adsNote) {
+      adsNote.textContent = removed
+        ? 'You removed ads, so there are none to personalise.'
+        : 'Ads matched to your interests. Left off, ads still appear but are generic.';
+    }
+    if (adsBtn) adsBtn.disabled = removed;
+    renderHomeRemoveAds();
+    if (!show) return;
+    var st = P.status();
+    var btn = $('settings-remove-ads');
+    var note = $('settings-remove-ads-note');
+    if (st.owned) {
+      btn.textContent = 'Removed';
+      btn.disabled = true;
+      note.textContent = message || 'Thank you! Ads are gone for good.';
+    } else if (st.pending) {
+      btn.textContent = 'Pending';
+      btn.disabled = true;
+      note.textContent = message || 'Waiting for the payment to be approved. Ads switch off by themselves when it goes through.';
+    } else {
+      btn.textContent = st.busy ? '\u2026' : (st.price || 'Remove');
+      btn.disabled = st.busy;
+      note.textContent = message || REMOVE_ADS_NOTE;
+    }
+    $('settings-restore').disabled = st.busy || st.owned;
+  }
+
+  /* The home-screen button: the same purchase as the Settings row, one tap
+     from the menu. Hidden on the web and once bought; while a payment is
+     pending it stays, disabled, so the player can see it is in hand. */
+  var homeThanksUntil = 0;
+  function renderHomeRemoveAds() {
+    var P = window.Purchases;
+    var btn = $('home-remove-ads');
+    if (!btn) return;
+    if (!P || !P.available()) { btn.hidden = true; return; }
+    var st = P.status();
+    if (st.owned) {
+      var left = homeThanksUntil - Date.now();
+      btn.hidden = left <= 0;
+      btn.textContent = 'Thank you!';
+      btn.disabled = true;
+      if (left > 0) setTimeout(renderHomeRemoveAds, left + 20);
+      return;
+    }
+    btn.hidden = false;
+    btn.disabled = st.busy || st.pending;
+    btn.textContent = '';
+    if (st.pending) { btn.textContent = 'Pending'; return; }
+    /* The price comes from the store, so it goes in as text, never as markup. */
+    UI.el('span', 'ra-long', btn).textContent = 'Remove ads';
+    UI.el('span', 'ra-short', btn).textContent = 'No ads';
+    btn.appendChild(document.createTextNode(
+      st.busy ? '\u2026' : st.price ? ' \u00b7 ' + st.price : ''));
+  }
+
+  async function buyFromHome() {
+    var P = window.Purchases;
+    if (!P) return;
+    var result = await P.buy();
+    track('remove_ads', { result: result, from: 'home' });
+    if (result === 'owned') homeThanksUntil = Date.now() + 2500;
+    renderPurchaseRows();
+    /* There is no room on the menu for an explanation; Settings has one,
+       and the Restore button next to it. */
+    if (result === 'failed' || result === 'pending') {
+      updateSettingsUI();
+      renderPurchaseRows(result === 'failed'
+        ? 'The purchase did not go through. Check your connection and try again. Bought it before? Tap Restore.'
+        : 'Waiting for the payment to be approved. Ads switch off by themselves when it goes through.');
+      $('settings-modal').hidden = false;
+    }
+  }
+
+  async function buyRemoveAds() {
+    var P = window.Purchases;
+    if (!P) return;
+    var result = await P.buy();
+    track('remove_ads', { result: result, from: 'settings' });
+    var msg = {
+      owned: 'Thank you! Ads are gone for good.',
+      pending: 'Waiting for the payment to be approved. Ads switch off by themselves when it goes through.',
+      cancelled: null,
+      failed: 'The purchase did not go through. Check your connection and try again.'
+    }[result];
+    renderPurchaseRows(msg || undefined);
+  }
+
+  async function restorePurchases() {
+    var P = window.Purchases;
+    if (!P) return;
+    var owned = await P.restore();
+    track('remove_ads_restore', { found: owned });
+    renderPurchaseRows(owned
+      ? 'Restored. Ads are gone for good.'
+      : 'No Remove Ads purchase found for this ' +
+        (window.Capacitor && window.Capacitor.getPlatform() === 'ios' ? 'Apple ID.' : 'Google account.'));
+  }
+
+  function bindStoreAndReminders() {
+    $('settings-reminder').addEventListener('click', toggleReminder);
+    $('reminder-offer-yes').addEventListener('click', async function () {
+      closeReminderOffer();
+      var result = await window.Reminders.enable(dailyDone());
+      if (result === 'on') track('daily_reminder', { on: true, hour: window.Reminders.state().hour, from: 'offer' });
+      renderReminderRows();
+    });
+    $('reminder-offer-no').addEventListener('click', closeReminderOffer);
+
+    $('settings-remove-ads').addEventListener('click', buyRemoveAds);
+    $('home-remove-ads').addEventListener('click', buyFromHome);
+    $('settings-restore').addEventListener('click', restorePurchases);
+
+    if (window.Purchases) {
+      window.Purchases.onChange(function () { renderPurchaseRows(); });
+    }
+    if (window.Reminders) {
+      /* A tapped reminder opens the daily calendar, unless a puzzle is in
+         progress: that is left alone rather than thrown away. */
+      window.Reminders.onOpen(function () {
+        if ($('screen-game').classList.contains('is-active')) return;
+        closeReminderOffer();
+        state.mode = 'daily';
+        state.calMonth = null;
+        renderDaily();
+        showScreen('screen-daily');
+      });
+      window.Reminders.sync(dailyDone());
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState !== 'visible') return;
+        /* A new day may have started while the game sat in the background. */
+        window.Reminders.sync(dailyDone());
+        if (reminderFromSettings) finishReminderFromSettings();
+      });
+    }
+    renderReminderRows();
+    renderPurchaseRows();
+  }
+
   /* Every call site is one line and none of them can fail: Track.event is
      itself a no-op without consent. */
   function track(name, params) {
@@ -1253,6 +1516,7 @@
     loadAll();
     applyConsent();
     wire();
+    bindStoreAndReminders();
     renderHome();
     showScreen('screen-home');
     /* Every ad gate now hangs off this: the player answers our dialog first,

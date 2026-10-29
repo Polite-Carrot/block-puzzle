@@ -21,9 +21,18 @@
   function track(name, params) {
     if (window.Track) window.Track.event(name, params);
   }
+  /* Bought "Remove Ads" (js/purchases.js): Unity is never started, nothing is
+   * loaded or shown. Read live, so a purchase or a refund mid-session takes
+   * effect on the next level without a restart. */
+  function removed() {
+    return !!(window.Purchases && window.Purchases.adsRemoved && window.Purchases.adsRemoved());
+  }
+  function init() {
+    return removed() ? Promise.resolve(false) : client.init();
+  }
 
   function warm() {
-    if (!isNative() || showing) return Promise.resolve(false);
+    if (!isNative() || showing || removed()) return Promise.resolve(false);
     if (preparing) return preparing;
     preparing = client.prepareInterstitial().then(function (result) {
       if (!result.loaded) warn(result.reason);
@@ -36,13 +45,13 @@
   }
 
   function noteLevelComplete() {
-    if (!isNative()) return;
+    if (!isNative() || removed()) return;
     levelsSinceLast += 1;
     if (levelsSinceLast >= MIN_LEVELS - 1 && !client.state().prepared.interstitial) warm();
   }
 
   async function maybeShowInterstitial() {
-    if (!isNative() || showing || levelsSinceLast < MIN_LEVELS ||
+    if (!isNative() || showing || removed() || levelsSinceLast < MIN_LEVELS ||
         Date.now() - lastShownAt < MIN_MILLIS) return false;
     // Never wait for an ad to load in the Next Level button handler.
     if (!client.state().prepared.interstitial) { warm(); return false; }
@@ -77,7 +86,7 @@
     if (getPlatform() !== 'ios') return Promise.resolve(null);
     if (attPromise) return attPromise;
     // Prompt only from the app's existing onboarding/settings actions.
-    attPromise = (mayPrompt ? client.requestTracking() : client.init().then(function () {
+    attPromise = (mayPrompt ? client.requestTracking() : init().then(function () {
       return client.state().attStatus;
     })).catch(function (error) {
       warn(error);
@@ -89,7 +98,7 @@
   function adsPersonalisedGranted() { return client.state().effectivePersonalized; }
 
   window.Ads = {
-    init: client.init,
+    init: init,
     isNative: isNative,
     getPlatform: getPlatform,
     setPersonalized: setPersonalized,

@@ -13,6 +13,8 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.5.0"),
         .package(name: "CapacitorFirebaseAnalytics", path: "../../../node_modules/@capacitor-firebase/analytics"),
+        .package(name: "CapacitorLocalNotifications", path: "../../../node_modules/@capacitor/local-notifications"),
+        .package(name: "CapgoNativePurchases", path: "../../../node_modules/@capgo/native-purchases"),
         .package(name: "PolitecarrotCapacitorUnityAds", path: "../../../node_modules/@politecarrot/capacitor-unity-ads")
     ],
     targets: [
@@ -22,6 +24,8 @@ let package = Package(
                 .product(name: "Capacitor", package: "capacitor-swift-pm"),
                 .product(name: "Cordova", package: "capacitor-swift-pm"),
                 .product(name: "CapacitorFirebaseAnalytics", package: "CapacitorFirebaseAnalytics"),
+                .product(name: "CapacitorLocalNotifications", package: "CapacitorLocalNotifications"),
+                .product(name: "CapgoNativePurchases", package: "CapgoNativePurchases"),
                 .product(name: "PolitecarrotCapacitorUnityAds", package: "PolitecarrotCapacitorUnityAds")
             ]
         )

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status-bar icon for the daily reminder. Android draws small notification
+     icons as a white silhouette, so this is a single-colour T block; a full
+     colour icon would show as a grey square. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M9.6,4.5h4.8a1,1 0,0 1,1 1v4.8a1,1 0,0 1,-1 1H9.6a1,1 0,0 1,-1 -1V5.5a1,1 0,0 1,1 -1z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M3.1,12.2h4.8a1,1 0,0 1,1 1V18a1,1 0,0 1,-1 1H3.1a1,1 0,0 1,-1 -1v-4.8a1,1 0,0 1,1 -1z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M9.6,12.2h4.8a1,1 0,0 1,1 1V18a1,1 0,0 1,-1 1H9.6a1,1 0,0 1,-1 -1v-4.8a1,1 0,0 1,1 -1z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M16.1,12.2h4.8a1,1 0,0 1,1 1V18a1,1 0,0 1,-1 1h-4.8a1,1 0,0 1,-1 -1v-4.8a1,1 0,0 1,1 -1z" />
+</vector>

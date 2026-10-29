@@ -29,6 +29,7 @@
   var POOL_MID     = POOL_FULL;
   var POOL_LARGE   = POOL_FULL;
   var POOL_HARDEST = POOL_FULL;
+  var AWKWARD      = ['tet_t', 'tet_s', 'tet_z'];
 
   /* mulberry32 — small, fast, deterministic. */
   function rng(seed) {
@@ -136,6 +137,7 @@
     }
     var solution = [];
     var used = {};
+    function weight(shape) { return (used[shape] || 0) - (AWKWARD.indexOf(shape) >= 0 ? 0.5 : 0); }
     var started = Date.now();
     var exhausted = false;
 
@@ -156,9 +158,10 @@
       for (var m = 0; m < sizes.length; m++) {
         /* Shuffle, then favour the shapes this board has used least — the
            most compact piece fits the most gaps and would otherwise win
-           nearly every time. */
+           nearly every time. T, S and Z get a head start: they are the hardest
+           to fit, so without it they are crowded out by I, O, L and J. */
         var group = shufflePlace(grouped.get(sizes[m]), rand);
-        group.sort(function (a, b) { return (used[a.shape] || 0) - (used[b.shape] || 0); });
+        group.sort(function (a, b) { return weight(a.shape) - weight(b.shape); });
         ordered = ordered.concat(group);
       }
       for (var n = 0; n < ordered.length; n++) {
@@ -181,27 +184,65 @@
     return backtrack() ? solution : null;
   }
 
-  /* ── terrain ───────────────────────────────────────────────────────── */
+  /* A random walk alone kept dealing the same gentle bump; named shapes give
+     floors that read differently at a glance. */
+  var FLOOR_STYLES = ['walk', 'valley', 'hill', 'stairs', 'shelf', 'teeth', 'walk', 'twin'];
+
+  function spread(heights) {
+    return Math.max.apply(null, heights) - Math.min.apply(null, heights);
+  }
+
+  /* Column heights for one style, before the floor is dropped to the bottom.
+     Every result is smoothed so neighbouring columns differ by at most one
+     row, which keeps one-wide shafts out of the arena. */
+  function floorProfile(style, w, D, rand) {
+    var hs = [], c, mid = (w - 1) / 2, from, span;
+    switch (style) {
+      case 'valley':
+        for (c = 0; c < w; c++) hs.push(Math.round(Math.abs(c - mid) * D / mid));
+        break;
+      case 'hill':
+        for (c = 0; c < w; c++) hs.push(D - Math.round(Math.abs(c - mid) * D / mid));
+        break;
+      case 'stairs':
+        for (c = 0; c < w; c++) hs.push(Math.round(c * D / (w - 1)));
+        if (rand() < 0.5) hs.reverse();
+        break;
+      case 'shelf':
+        span = 2 + Math.floor(rand() * (w - 3));
+        from = Math.floor(rand() * (w - span + 1));
+        for (c = 0; c < w; c++) hs.push(c >= from && c < from + span ? D : 0);
+        break;
+      case 'teeth':
+        from = Math.floor(rand() * 3);
+        for (c = 0; c < w; c++) hs.push((c + from) % 3 === 0 ? 0 : Math.min(D, 1 + ((c + from) % 2)));
+        break;
+      case 'twin':
+        for (c = 0; c < w; c++) hs.push(Math.round(Math.abs(Math.sin((c + 0.5) * Math.PI * 2 / w)) * D));
+        break;
+      default:
+        var rise = Math.floor(rand() * (D + 1));
+        for (c = 0; c < w; c++) {
+          var roll = rand();
+          var delta = roll < 0.35 ? -1 : roll < 0.65 ? 0 : 1;
+          if (rise + delta > D || rise + delta < 0) delta = -delta;
+          rise += delta;
+          hs.push(rise);
+        }
+    }
+    for (c = 1; c < w; c++) hs[c] = Math.min(hs[c], hs[c - 1] + 1);
+    for (c = w - 2; c >= 0; c--) hs[c] = Math.min(hs[c], hs[c + 1] + 1);
+    return hs;
+  }
 
   function makeTerrain(w, h, maxRise, rand) {
     if (maxRise <= 0) return [];
-    /* A walk clamped at its limits stalls there and often comes out flat, so
-       it bounces off them instead, and a floor that is still too even is
-       re-rolled. Wide shallow floors want at least one step; deeper ones two. */
+    /* Wide shallow floors want at least one step; deeper ones two. */
     var wantRange = Math.min(maxRise, 2);
-    var heights = null;
-    for (var attempt = 0; attempt < 12; attempt++) {
-      var rise = Math.floor(rand() * (maxRise + 1));
-      var walk = [];
-      for (var c = 0; c < w; c++) {
-        var roll = rand();
-        var delta = roll < 0.35 ? -1 : roll < 0.65 ? 0 : 1;
-        if (rise + delta > maxRise || rise + delta < 0) delta = -delta;
-        rise += delta;
-        walk.push(rise);
-      }
-      heights = walk;
-      if (Math.max.apply(null, walk) - Math.min.apply(null, walk) >= wantRange) break;
+    var style = FLOOR_STYLES[Math.floor(rand() * FLOOR_STYLES.length)];
+    var heights = floorProfile(style, w, maxRise, rand);
+    for (var attempt = 0; attempt < 12 && spread(heights) < wantRange; attempt++) {
+      heights = floorProfile('walk', w, maxRise, rand);
     }
     /* Drop the whole floor until its shallowest column reaches the bottom.
        Zeroing just that one column instead would cut a cliff into an
@@ -302,29 +343,33 @@
 
   /* ── params: campaign and random ──────────────────────────────────── */
 
-  /* Campaign — deterministic curve. `ramp` carries the climb to level ~300,
-     where boards are properly tricky; `tail` adds a last notch of size and
-     terrain from there to level 1000. */
+  /* Campaign — deterministic curve. Boards reach 6 wide by level ~40 and
+     7x8 by ~130; `tail` adds the last notch of size and terrain on the way to
+     level 1000. Each level also gets its own small size jitter, so
+     neighbouring levels never share a board by rote. */
   var CAMPAIGN_LEVELS = 1000;
   var MAX_HEIGHT = 10;
-  function campaignParams(level) {
+  function campaignParams(level, variant) {
     var idx = Math.max(0, level - 6);
     var ramp = Math.min(1, idx / 300);
     var tail = Math.max(0, (idx - 300) / (CAMPAIGN_LEVELS - 306));
-    var wBase = 4 + Math.round(ramp * 3) + Math.round(tail * 1);   /* 4 → 7 → 8 */
-    var hBase = 4 + Math.round(ramp * 4) + Math.round(tail * 2);   /* 4 → 8 → 10 */
-    var wOff  = [0, 1, 0, -1, 1, 0][level % 6];
-    var hOff  = [1, 0, 1, 0, -1, 0, 1][level % 7];
+    var jitter = rng(level * 7919 + 11 + (variant | 0) * 104729);
+    var wBase = 5 + Math.min(2, idx / 60) + tail;            /* 5 → 7 → 8 */
+    var hBase = 5 + Math.min(3, idx / 45) + tail * 2;        /* 5 → 8 → 10 */
+    var wOff  = [-1, 0, 0, 1][Math.floor(jitter() * 4)];
+    var hOff  = [-1, 0, 1, 1, 2][Math.floor(jitter() * 5)];
     /* Once the floor is shaped, 4-wide or 4-tall boards leave too few ways to
        fill them, so they start at 5x5. */
     var minSide = level < 9 ? 4 : 5;
-    var w = Math.max(minSide, Math.min(8, wBase + wOff));
-    var h = Math.max(minSide, Math.min(MAX_HEIGHT, hBase + hOff));
-    var terrainMax = level < 9 ? 0 :
-      Math.min(Math.floor(h / 2), Math.max(1, Math.round(ramp * 2) + Math.round(tail * 2)));
-    var pool = idx < 6  ? POOL_TINY :
-               idx < 30 ? POOL_SMALL : POOL_FULL;
-    var palette   = Math.min(9, 3 + Math.round(ramp * 3) + Math.round(tail * 2));
+    /* Flat warm-up boards after the tutorials, each its own size. */
+    var warmup = { 6: [4, 5], 7: [5, 4], 8: [4, 6] }[level];
+    var w = warmup ? warmup[0] : Math.max(minSide, Math.min(8, Math.round(wBase) + wOff));
+    var h = warmup ? warmup[1] : Math.max(minSide, Math.min(MAX_HEIGHT, Math.round(hBase) + hOff));
+    /* Floors two deep from level ~18, three from ~150, four in the tail. */
+    var depth = idx < 12 ? 1 : idx < 145 ? 2 : 3 + Math.round(tail);
+    var terrainMax = level < 9 ? 0 : Math.min(Math.floor(h / 2), depth);
+    var pool = idx < 3 ? POOL_TINY : POOL_FULL;
+    var palette   = Math.min(9, 4 + Math.round(ramp * 3) + Math.round(tail * 2));
     var fallSpeed = 0.35 + ramp * 0.25 + tail * 0.2;   /* 0.35 → 0.6 → 0.8 */
     return { w: w, h: h, terrainMax: terrainMax, pool: pool, palette: palette, fallSpeed: fallSpeed };
   }
@@ -479,6 +524,12 @@
         fallSpeed: params.fallSpeed
       };
       var count = countSolutions(level, MIN_SOLUTIONS);
+      /* A full pool must actually deal its awkward shapes: at least one T, S
+         or Z for every five pieces. */
+      if (params.pool === POOL_FULL) {
+        var awkward = pieces.filter(function (p) { return AWKWARD.indexOf(p.shape) >= 0; }).length;
+        if (awkward < Math.max(1, Math.floor(pieces.length / 5))) count = Math.min(count, MIN_SOLUTIONS - 1);
+      }
       if (count >= MIN_SOLUTIONS) return level;
       if (count > bestCount) { best = level; bestCount = count; }
     }
@@ -486,8 +537,8 @@
     return best;
   }
 
-  function buildCampaignLevel(index, seed) {
-    var params = campaignParams(index);
+  function buildCampaignLevel(index, seed, variant) {
+    var params = campaignParams(index, variant);
     var lvl = buildFromParams(params, seed, 'campaign');
     if (!lvl) throw new Error('could not tile level ' + index);
     lvl.id = 'level-' + String(index).padStart(3, '0');
